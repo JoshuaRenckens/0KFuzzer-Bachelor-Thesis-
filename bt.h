@@ -156,8 +156,10 @@ extern bool is_big_endian;
 extern bool is_padded_bitfield;
 void generate_file();
 
+std::vector<const char*> nameVec;
 
 void start_generation(const char* name) {
+	nameVec.push_back(name);
 	if (!get_parse_tree)
 		return;
 	generator_stack.emplace_back(name, file_acc.rand_prev, file_acc.rand_pos);
@@ -165,12 +167,20 @@ void start_generation(const char* name) {
 	file_acc.rand_last = UINT_MAX;
 }
 
+const char* mutated = "";
 void end_generation() {
+
 	if (!get_parse_tree)
 		return;
 	stack_cell& back = generator_stack.back();
 	stack_cell& prev = generator_stack[generator_stack.size() - 2];
 	file_acc.rand_prev = file_acc.rand_pos;
+
+	if (mutatedDecision){
+		mutated = back.name;
+		mutatedDecision = false;
+		printf("MUTATED CHUNK %s \n", back.name);
+	}
 	
 	if (smart_mutation && back.rand_start == rand_start && (is_optional || strcmp(back.name, chunk_name) == 0)) {
 		unsigned size = MAX_RAND_SIZE - file_acc.rand_pos;
@@ -178,10 +188,6 @@ void end_generation() {
 			size = MAX_RAND_SIZE - (rand_end + 1);
 		memmove(file_acc.rand_buffer + file_acc.rand_pos, file_acc.rand_buffer + rand_end + 1, size);
 		rand_end = file_acc.rand_pos - 1;
-	}
-	if (smart_abstraction && back.rand_start == rand_start && (is_optional || strcmp(back.name, chunk_name) == 0)) {
-		memcpy(file_acc.rand_buffer + file_acc.rand_pos, following_rand_buffer, following_rand_size);
-		smart_abstraction = false;
 	}
 
 	if (back.min < prev.min)
@@ -194,7 +200,7 @@ void end_generation() {
 		back.max = file_acc.file_pos - 1;
 	}
 	if (debug_print && back.min <= back.max) {
-		// printf("%u,%u, ", back.rand_start, file_acc.rand_pos - 1);
+		printf("%u,%u, ", back.rand_start, file_acc.rand_pos - 1);
 		printf("%u,%u,", back.min, back.max);
 		bool first = true;
 		stack_cell* parent = NULL;
@@ -614,10 +620,6 @@ int64 FileSize() {
 	return file_acc.file_size;
 }
 
-unsigned get_file_size() {
-	return file_acc.file_size;
-}
-
 template<typename T>
 int64 FindFirst(T data, int matchcase=true, int wholeword=false, int method=0, double tolerance=0.0, int dir=1, int64 start=0, int64 size=0, int wildcardMatchLength=24) {
 	// Other configurations not yet handled
@@ -996,5 +998,8 @@ double ReadDouble(int64 pos = FTell(), std::vector<double> possible_values = {})
 	return value;
 }
 
+unsigned int consumedRand(){
+	return file_acc.rand_pos;
+}
 
 #endif

@@ -24,7 +24,6 @@ int file_index = 0;
 bool get_chunk = false;
 bool get_all_chunks = false;
 bool smart_mutation = false;
-bool smart_abstraction = false;
 unsigned chunk_start;
 unsigned chunk_end;
 unsigned rand_start;
@@ -40,6 +39,9 @@ std::vector<int> optional_index = { 0 };
 std::unordered_map<std::string, std::vector<Chunk>> non_optional_chunks;
 std::vector<std::vector<NonOptional>> non_optional_index;
 std::vector<std::string> rand_names;
+extern unsigned currentPos;
+bool mutatedDecision = false;
+
 
 void swap_bytes(void* b, unsigned size) {
 	if (is_big_endian) {
@@ -52,7 +54,7 @@ void swap_bytes(void* b, unsigned size) {
 
 bool debug_print = false;
 bool print_errors = false;
-bool get_parse_tree = false;
+bool get_parse_tree = true;
 struct stack_cell {
 	const char* name;
 	std::unordered_map<std::string, int> counts;
@@ -80,9 +82,6 @@ void assert_cond(bool cond, const char* error_msg) {
 }
 
 unsigned char *rand_buffer;
-
-unsigned char *following_rand_buffer = NULL;
-unsigned following_rand_size = 0;
 
 class file_accessor {
 	bool allow_evil_values = true;
@@ -297,6 +296,14 @@ public:
 
 	std::function<long long (unsigned char*)> parse;
 
+	void checkIfMutated(){
+		if(rand_pos > currentPos ){
+				currentPos = UINT_MAX;
+				printf("Mutated Byte \n");
+				mutatedDecision = true;
+			}
+	}
+	
 	long long rand_int(unsigned long long x, std::function<long long (unsigned char*)>& parse) {
 		unsigned long long max = x-1;
 		if (!max)
@@ -323,6 +330,7 @@ public:
 				*p = parse(&file_buffer[file_pos]);
 			}
 			++rand_pos;
+			checkIfMutated();
 			return (*p) % x;
 		}
 		if (!(max>>16)) {
@@ -332,6 +340,7 @@ public:
 				*p = parse(&file_buffer[file_pos]);
 			}
 			rand_pos += 2;
+			checkIfMutated();
 			return (*p) % x;
 		}
 		if (!(max>>32)) {
@@ -341,6 +350,7 @@ public:
 				*p = parse(&file_buffer[file_pos]);
 			}
 			rand_pos += 4;
+			checkIfMutated();
 			return (*p) % x;
 		}
 		assert_cond(rand_pos + 8 <= rand_size, "random size exceeded rand_size");
@@ -349,6 +359,7 @@ public:
 			*p = parse(&file_buffer[file_pos]);
 		}
 		rand_pos += 8;
+		checkIfMutated();
 		if (!x)
 			return *p;
 		return (*p) % x;
@@ -634,7 +645,6 @@ public:
 				return std::find(good.begin(), good.end(), value) == good.end();
 			};
 		if ((match && compatible.empty()) || evil(evil_parse)) {
-			assert_cond(size, "empty known string");
 			return file_string(size);
 		}
 		if (!generate)

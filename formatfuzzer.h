@@ -35,6 +35,7 @@ extern std::vector<int> optional_index;
 extern std::unordered_map<std::string, std::vector<Chunk>> non_optional_chunks;
 extern std::vector<std::vector<NonOptional>> non_optional_index;
 extern std::vector<std::string> rand_names;
+unsigned int consumedRand();
 
 void set_parser();
 
@@ -43,8 +44,6 @@ void set_generator();
 void setup_input(const char* filename);
 
 void generate_file();
-
-unsigned get_file_size();
 
 void delete_globals();
 

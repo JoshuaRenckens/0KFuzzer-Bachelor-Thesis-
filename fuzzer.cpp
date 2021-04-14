@@ -18,6 +18,11 @@
 
 #include "config.h"
 #include "formatfuzzer.h"
+#include "iostream"
+#include <tuple>
+#include <map>
+#include <list>
+#include <algorithm>
 
 static const char *bin_name = "formatfuzzer";
 
@@ -200,7 +205,6 @@ extern int file_index;
 extern bool get_chunk;
 extern bool get_all_chunks;
 extern bool smart_mutation;
-extern bool smart_abstraction;
 extern unsigned chunk_start;
 extern unsigned chunk_end;
 extern unsigned rand_start;
@@ -209,8 +213,6 @@ extern bool is_optional;
 extern bool is_delete;
 extern bool following_is_optional;
 
-extern unsigned char *following_rand_buffer;
-extern unsigned following_rand_size;
 
 /* Get unix time in microseconds */
 
@@ -567,7 +569,7 @@ the binary template (such as length fields).
 	{
 		fprintf(stderr, "%s: Parsing %s failed\n", bin_name, file_t);
 	}
-	if (rand_start == UINT_MAX) {
+	if (end_t != -1 && rand_start == UINT_MAX) {
 		fprintf(stderr, "%s: Unable to find chunk in file %s\n", bin_name, file_t);
 		return -2;
 	}
@@ -821,151 +823,6 @@ smaller number of decision bytes in file_t than it did in file_s.
 
 
 
-// smart_abstract - randomize a chunk
-int smart_abstract(int argc, char **argv)
-{
-	char *file_t = NULL;
-	int start_t = -1;
-	int end_t = -1;
-
-	bool success = false;
-
-	unsigned char *rand_t = new unsigned char[MAX_RAND_SIZE];
-	unsigned len_t;
-	int rand_fd = open("/dev/urandom", O_RDONLY);
-	ssize_t r = read(rand_fd, rand_t, MAX_RAND_SIZE);
-	if (r != MAX_RAND_SIZE)
-		printf("Read only %ld bytes from /dev/urandom\n", r);
-
-	// Process options
-	while (1)
-	{
-		static struct option long_options[] =
-			{
-				{"help", no_argument, 0, 'h'},
-				{"targetfile", required_argument, 0, 1},
-				{"targetstart", required_argument, 0, 2},
-				{"targetend", required_argument, 0, 3},
-				{0, 0, 0, 0}};
-		int option_index = 0;
-		int c = getopt_long(argc, argv, "",
-							long_options, &option_index);
-
-		// Detect the end of the options.
-		if (c == -1)
-			break;
-
-		switch (c)
-		{
-		case 'h':
-		case '?':
-			fprintf(stderr, R"(abstract: Smart Abstraction
-abstract --targetfile file_t --targetstart start_t --targetend end_t OUTFILE
-
-Apply a smart abstraction operation, randomizing one chunk from file_t (byte
-range [start_t, end_t]).  The contents of the chunk will be randomly
-generated, while trying to preserve decisions made before and after the
-chunk.  This smart abstraction should also fix constraints implemented in
-the binary template (such as length fields).
-)");
-			return 0;
-
-		case 1:
-			file_t = optarg;
-			break;
-		case 2:
-			start_t = strtol(optarg, NULL, 0);
-			break;
-		case 3:
-			end_t = strtol(optarg, NULL, 0);
-			break;
-		}
-	}
-    
-	if (optind >= argc) {
-		fprintf(stderr, "%s: missing output file.\n", bin_name);
-		return -2;
-	}
-	if (!file_t || start_t == -1 || end_t == -1) {
-		fprintf(stderr, "%s: missing required arguments for target file.\n", bin_name);
-		return -2;
-	}
-
-	// Main function
-	char *out = argv[optind];
-
-
-	printf("\nParsing file %s\n\n", file_t);
-	success = false;
-
-	get_chunk = true;
-	chunk_start = start_t;
-	chunk_end = end_t;
-	rand_start = rand_end = UINT_MAX;
-	set_parser();
-	setup_input(file_t);
-	try
-	{
-		generate_file();
-		success = true;
-	}
-	catch (int status)
-	{
-		delete_globals();
-		if (status == 0)
-			success = true;
-	}
-	catch (...)
-	{
-		delete_globals();
-	}
-	if (!success)
-	{
-		fprintf(stderr, "%s: Parsing %s failed\n", bin_name, file_t);
-	}
-	if (rand_start == UINT_MAX) {
-		fprintf(stderr, "%s: Unable to find chunk in file %s\n", bin_name, file_t);
-		return -2;
-	}
-	len_t = copy_rand(rand_t);
-	start_t = rand_start;
-	end_t = rand_end;
-
-	printf("\nGenerating file %s\n\n", out);
-
-	following_rand_size = len_t - (end_t + 1);
-	following_rand_buffer = new unsigned char[following_rand_size];
-	memcpy(following_rand_buffer, rand_t + end_t + 1, following_rand_size);
-
-	r = read(rand_fd, rand_t + start_t, len_t - start_t);
-	if (r != len_t - start_t)
-		printf("Read only %ld bytes from /dev/urandom\n", r);
-	close(rand_fd);
-
-	get_chunk = false;
-	smart_abstraction = true;
-	set_generator();
-
-	unsigned char* file = NULL;
-	unsigned file_size = afl_pre_save_handler(rand_t, MAX_RAND_SIZE, &file);
-	if (!file || !file_size) {
-		printf("Failed to generate mutated file!\n");
-		return -2;
-	}
-	save_output(out);
-	fprintf(stderr, "%s: %s created\n", bin_name, out);
-
-	delete[] rand_t;
-	delete[] following_rand_buffer;
-	if (smart_abstraction) {
-		printf("Abstracted chunk was not created!\n");
-		return -1;
-	}
-	return success ? 0 : -2;
-}
-
-
-
 extern "C" void process_file(const char *file_name, const char *rand_name) {
 	insertion_points.push_back({});
 	deletable_chunks.push_back({});
@@ -1033,7 +890,7 @@ extern "C" int one_smart_mutation(int target_file_index, unsigned char** file, u
 	}
 
 	bool old_debug_print = debug_print;
-	switch (rand() % (deletable_chunks[target_file_index].size() ? 5 : 4)) {
+	switch (rand() % (deletable_chunks[target_file_index].size() ? 4 : 3)) {
 	case 0:
 	{
 		NonOptional& no = non_optional_index[target_file_index][rand() % non_optional_index[target_file_index].size()];
@@ -1158,66 +1015,6 @@ extern "C" int one_smart_mutation(int target_file_index, unsigned char** file, u
 		return (rand_end > rand_end0) - (rand_end < rand_end0);
 	}
 	case 3:
-	{
-		int start_t = -1;
-		int end_t = -1;
-		if (rand() % 2) {
-			NonOptional& no = non_optional_index[target_file_index][rand() % non_optional_index[target_file_index].size()];
-			int chunk_index = no.start + rand() % no.size;
-			Chunk& t = non_optional_chunks[no.type][chunk_index];
-			if (debug_print)
-				printf("Abstracting from file %d non-optional chunk %u %u %s %s\n", t.file_index, t.start, t.end, t.type, t.name);
-			start_t = t.start;
-			end_t = t.end;
-			is_optional = false;
-			chunk_name = t.name;
-		} else {
-			int chunk_index = optional_index[target_file_index] + rand() % (optional_index[target_file_index+1] - optional_index[target_file_index]);
-			Chunk& t = optional_chunks[chunk_index];
-			if (debug_print)
-				printf("Abstracting from file %d optional chunk %u %u %s %s\n", t.file_index, t.start, t.end, t.type, t.name);
-			start_t = t.start;
-			end_t = t.end;
-			is_optional = true;
-			chunk_name = t.name;
-		}
-		len_t = read_rand_file(rand_names[target_file_index].c_str(), rand_t);
-
-		following_rand_size = len_t - (end_t + 1);
-		following_rand_buffer = rand_s;
-		memcpy(following_rand_buffer, rand_t + end_t + 1, following_rand_size);
-
-		int rand_fd = open("/dev/urandom", O_RDONLY);
-		ssize_t r = read(rand_fd, rand_t + start_t, len_t - start_t);
-		if (r != len_t - start_t)
-			printf("Read only %ld bytes from /dev/urandom\n", r);
-		close(rand_fd);
-
-		smart_abstraction = true;
-		get_parse_tree = true;
-		rand_start = start_t;
-		set_generator();
-
-		*file = NULL;
-		debug_print = false;
-		*file_size = afl_pre_save_handler(rand_t, MAX_RAND_SIZE, file);
-		get_parse_tree = false;
-		debug_print = old_debug_print;
-		if (smart_abstraction) {
-			smart_abstraction = false;
-			if (debug_print)
-				printf("Abstracted chunk was not created!\n");
-			return -1;
-		}
-		if (!(*file) || !(*file_size)) {
-			if (debug_print)
-				printf("Failed to generate mutated file!\n");
-			return -2;
-		}
-
-		return 0;
-	}
-	case 4:
 	{
 		int index = rand() % deletable_chunks[target_file_index].size();
 		Chunk& t = deletable_chunks[target_file_index][index];
@@ -1394,6 +1191,159 @@ int version(int argc, char *argv[])
 	return 0;
 }
 
+
+extern std::vector<const char*> nameVec;
+unsigned currentPos = 0;
+//No explanation for now
+int explore(int argc, char **argv)
+{
+	get_parse_tree = true;
+	debug_print = false;
+	print_errors = true;
+	unsigned int pos=0;
+	unsigned char * buffer = new unsigned char [MAX_RAND_SIZE];
+	int rand_fd = open("/dev/urandom", O_RDONLY);
+	ssize_t r = read(rand_fd, buffer, MAX_RAND_SIZE);
+	if (r != MAX_RAND_SIZE)
+		printf("Read only %ld bytes from /dev/urandom\n", r);
+	close(rand_fd);
+	unsigned char * idk = NULL;
+	while (true) {
+		int j = 0;
+  		while(j < 30){
+			currentPos = pos;
+  			int test = rand() % 256;
+			test = test + 1;
+			buffer[pos] = test;
+			unsigned int result = afl_pre_save_handler(buffer, MAX_RAND_SIZE, &idk);
+			printf("Pos: %u, CVal: %d, Try: %d/30, Len: %u, Consumed: %u \n", pos, test, j+1, result, consumedRand());
+			j++;
+		}
+		pos++;
+		if (pos > consumedRand()){
+			break;
+		}
+	}
+	return 0;
+}
+
+extern const char* mutated;
+
+std::tuple<unsigned char *, int> get_struct(unsigned char * buffer, unsigned int position, const char* name){
+	get_parse_tree = true;
+	debug_print = false;
+	print_errors = true;
+	unsigned int pos = position;
+	unsigned char * buf = buffer;
+	unsigned char * idk = NULL;
+	std::tuple<unsigned char *, int> tuple;
+	unsigned int result = 0;
+	int last_non_zero = 0;
+	while(true){
+		for (int i = 0; i < 256; i++){
+			currentPos = pos;
+			buf[pos] = i;
+			result = afl_pre_save_handler(buf, MAX_RAND_SIZE, &idk);
+			if (result != 0){
+				last_non_zero = i;
+			}
+			if (strcmp(mutated, name) == 0){
+				tuple = std::make_tuple(buf, pos+1);
+				return tuple;
+			}
+			if (i == 255 && result == 0){
+				buf[pos] = last_non_zero;
+			}
+			printf("Pos: %u, CVal: %d, Len: %u, Consumed: %u \n", pos, i, result, consumedRand());
+		}
+		pos++;
+		if (pos > consumedRand()){
+			break;
+		}
+	}
+	tuple = std::make_tuple(buffer, position+1);
+	return tuple;
+}
+
+extern std::map<std::string, std::vector<std::string>> get_reachabilities();
+
+std::list<std::list<std::string>> get_kPaths(long int k, std::map<std::string, std::vector<std::string>> reachabilities){
+	std::list<std::list<std::string>> kPaths;
+	// Get all keys from the map and save them in a vector
+	std::vector<std::string> keys;
+	for(std::map<std::string, std::vector<std::string>>:: iterator iter = reachabilities.begin(); iter != reachabilities.end(); ++iter){
+		keys.push_back(iter->first);
+	}
+	// Iterate over all non-terminals
+	for(std::vector<std::string>::iterator iter = keys.begin(); iter != keys.end(); ++iter){
+		std::list<std::list<std::string>> key_starting_paths;
+		std::list<std::string> path({*iter});
+		key_starting_paths.push_back(path);
+		int j = 1;
+		// For every non-terminal generate the reachable k-paths
+		while(j < k){
+			std::list<std::list<std::string>> temp_list;
+			for (std::list<std::list<std::string>>::iterator it = key_starting_paths.begin(); it != key_starting_paths.end(); ++it){
+				std::list<std::string> current = *it;
+				std::string toExpand = current.back();
+				std::vector<std::string> expansions = reachabilities[toExpand];
+				for (std::vector<std::string>::iterator i = expansions.begin(); i != expansions.end(); ++i){
+					std::list<std::string> toAdd = current;
+					if(std::find(keys.begin(), keys.end(), *i) != keys.end() || j == k-1){
+						toAdd.push_back(*i);
+						if(std::find(temp_list.begin(), temp_list.end(), toAdd) == temp_list.end()){
+							temp_list.push_back(toAdd);
+						}
+					}
+				}
+			}
+			j++;
+			key_starting_paths = temp_list;
+		}
+		kPaths.merge(key_starting_paths);
+	}
+	return kPaths;
+}
+
+int test_k_paths(int argc, char **argv){
+	if (argc != 2){
+		printf("Wrong number of arguments \n");
+		return 1;
+	}
+	char *str = argv[1];
+	char *pEnd;
+	long int k = strtol(str, &pEnd, 10);
+	if (*pEnd != 0){
+		printf("Wrong type of argument \n");
+		return 1;
+	}
+	std::list<std::list<std::string>> k_paths = get_kPaths(k, get_reachabilities());
+	for (std::list<std::list<std::string>>::iterator it = k_paths.begin(); it != k_paths.end(); ++it){
+		std::list<std::string> k_path = *it;
+		printf("Start: ");
+		for (std::list<std::string>::iterator i = k_path.begin(); i != k_path.end(); ++i){
+			std::string part = *i;
+			std::cout << " -> " << part;
+		}
+		printf(" :, End\n");
+	}
+	return 0;
+}
+
+int test_func(int argc, char **argv){
+	unsigned char * buffer = new unsigned char [MAX_RAND_SIZE];
+	int rand_fd = open("/dev/urandom", O_RDONLY);
+	ssize_t r = read(rand_fd, buffer, MAX_RAND_SIZE);
+	if (r != MAX_RAND_SIZE)
+		printf("Read only %ld bytes from /dev/urandom\n", r);
+	close(rand_fd);
+	const char* name = "expr";
+	std::tuple<unsigned char *, int> result = get_struct(buffer, 0, name);
+	unsigned int pos = std::get<1>(result);
+	printf("Pos: %u\n", pos);
+	return 0;
+}
+
 // Dispatch commands
 typedef struct
 {
@@ -1408,11 +1358,13 @@ COMMAND commands[] = {
 	{"replace", smart_replace, "Apply a smart replacement"},
 	{"delete", smart_delete, "Apply a smart deletion"},
 	{"insert", smart_insert, "Apply a smart insertion"},
-	{"abstract", smart_abstract, "Apply a smart abstraction"},
 	{"mutations", mutations, "Smart mutations"},
 	{"test", test, "Test if fuzzer is working properly (sanity checks)"},
 	{"benchmark", benchmark, "Benchmark fuzzing"},
 	{"version", version, "Show version"},
+	{"explore", explore, "Explore (can't think of a description)"},
+	{"test_func", test_func, "Just for some testing"},
+	{"test_k_paths", test_k_paths, "Test k-path generation"},
 };
 
 int help(int argc, char *argv[])
