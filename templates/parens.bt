@@ -1,0 +1,51 @@
+//------------------------------------------------
+//--- 010 Editor Binary Template
+//
+//      File: multiParen.bt
+
+
+local byte ReadByteInitValues[0];
+
+struct paren_expr;
+
+struct block_expr;
+
+struct expression(byte ending) {
+	if (ending != '\0') {
+		local byte possible_values[] = { ending, ending, '(', '[' };
+	} else {
+		local byte possible_values[] = { '(', '[' };
+	}
+	while ((ending || !FEof()) && (ReadByte(FTell(), possible_values) == '(' || ReadByte() == '[')) {
+		if (ReadByte() == '('){
+			paren_expr paren;
+		}
+		else if (ReadByte() == '['){
+			block_expr block;
+		}
+	}
+};
+
+struct paren_expr {
+	char parenopen;
+	expression pareninside(')');
+	char parenclose;
+	if (parenclose != ')') {
+		Warning("Unmatched open parenthesis!");
+		return -1;
+	}
+};
+
+struct block_expr {
+	char bracketopen;
+	expression bracketinside(']');
+	char bracketclose;
+	if (bracketclose != ']') {
+		Warning("Unmatched open bracket!");
+		return -1;
+	}
+};
+
+SetEvilBit(false);
+
+expression expr('\0');

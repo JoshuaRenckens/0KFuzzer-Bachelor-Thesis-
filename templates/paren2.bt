@@ -1,0 +1,39 @@
+//------------------------------------------------
+//--- 010 Editor Binary Template
+//
+//      File: paren2.bt
+
+
+local int count = 0;
+
+struct paren_expr;
+
+struct paren_expr {
+	local char c[1];
+	if (count == 0) {
+		local string preferred_values[0];
+		local string possible_values[] = { "(" };
+		local double p = 0.1;
+	} else {
+		local string preferred_values[] = { ")" };
+		local string possible_values[] = { "(" };
+		local double p = 0.5;
+	}
+	while (ReadBytes(c, FTell(), 1, preferred_values, possible_values, p)) {
+		if (c != "(")
+			break;
+		char open;
+		++count;
+		paren_expr inside;
+		--count;
+		char close;
+		if (close != ')') {
+			Warning("Unmatched open parenthesis!");
+			return -1;
+		}
+	}
+};
+
+SetEvilBit(false);
+
+paren_expr expr;
