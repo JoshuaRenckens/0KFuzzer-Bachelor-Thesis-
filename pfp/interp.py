@@ -629,6 +629,43 @@ class Scope(object):
     # def __getattr__
     # def __setattr__
 
+reachability_list = []
+final_reachability_dict = {}
+
+def record_non_terminal(classname, name, decl):
+    if ((classname, decl.type.cpp) not in reachability_list):
+        reachability_list.append((classname, decl.type.cpp))
+
+def record_terminal(classname, name, decl):
+    if ((classname, name) not in reachability_list):
+        reachability_list.append((classname, name))
+
+def final_touch():
+    for i in reachability_list:
+        if i[0] in final_reachability_dict.keys():
+            if i[1] not in final_reachability_dict[i[0]]:
+                final_reachability_dict[i[0]].append(i[1])
+        else:
+            final_reachability_dict[i[0]] = [i[1]]
+
+    f = open("kPathParens.cpp", "w")
+    f.write("#include <map> \n#include <vector> \n\n")
+    f.write("std::map<std::string, std::vector<std::string>> get_reachabilities(){ \n    std::map<std::string, std::vector<std::string>> reach;\n")
+    parent_number = 0
+    for key in final_reachability_dict.keys():
+        f.write("    std::vector<std::string> vect"+str(parent_number)+"{")
+        temp = 0
+        for val in final_reachability_dict[key]:
+            if temp == 0:
+                f.write('"'+val+'"')
+                temp += 1
+            f.write(', "'+val+'"')
+        f.write("};\n")
+        f.write('    reach["' + key + '"] = vect'+str(parent_number)+';\n')
+        parent_number += 1
+    
+    f.write("    return reach;\n}")
+    f.close
 
 class PfpInterp(object):
     """
@@ -818,7 +855,6 @@ class PfpInterp(object):
             return []
         raise errors.PfpError("unhandled get_decls " + str(node.__class__))
 
-
     def add_class(self, classname, classnode, is_union=False):
         if classname in self._defined:
             return
@@ -866,15 +902,18 @@ class PfpInterp(object):
         for name, decl in variables:
             if hasattr(decl, "is_structunion"):
                 cpp += "\t" + decl.type.cpp + "* " + name + "_var;\n"
+                record_non_terminal(classname, name, decl)
             elif False and is_union and decl.type.cpp == "std::string" and decl.type.__class__ == AST.ArrayDecl:
                 cpp += "\t" + " ".join(decl.type.type.type.names) + " " + name + "_var[" + decl.type.dim.cpp + "];\n"
             elif decl.bitsize is not None:
+                record_terminal(classname, name, decl)
                 if "/**/" in decl.bitsize.cpp:
                     cpp += "\t" + decl.type.cpp + " " + name + "_var;  //  : " + decl.bitsize.cpp.replace("/**/", "") + ";\n"
                 else:
                     cpp += "\t" + decl.type.cpp + " " + name + "_var : " + decl.bitsize.cpp + ";\n"
             else:
                 cpp += "\t" + decl.type.cpp + " " + name + "_var;\n"
+                record_terminal(classname, name, decl)
         if is_union:
             cpp += "// };\n"
         cpp += "\npublic:\n"
@@ -1270,6 +1309,7 @@ class PfpInterp(object):
 
         res = self._run(keep_successful)
         res._pfp__finalize()
+        final_touch()
         return res
 
     def step_over(self):
@@ -1496,7 +1536,6 @@ class PfpInterp(object):
 
         types = self.get_types()
         res._pfp__types = types
-
         return res
 
     def _handle_node(self, node, scope=None, ctxt=None, stream=None):
@@ -1585,7 +1624,7 @@ class PfpInterp(object):
         :returns: TODO
 
         """
-        node.cpp = "#include <cstdlib>\n#include <cstdio>\n#include <string>\n#include <vector>\n#include <unordered_map>\n#include \"bt.h\"\n"
+        node.cpp = "#include <cstdlib>\n#include <cstdio>\n#include <string>\n#include <vector>\n#include <unordered_map>\n#include \"bt.h\"\n#include \"kPathParens.cpp\"\n"
         self._root = ctxt = fields.Dom(stream)
         ctxt._pfp__scope = scope
         self._root._pfp__name = "__root"
@@ -1705,6 +1744,7 @@ class PfpInterp(object):
         print(node.cpp, file=outfile)
         outfile.close()
         if self._generate:
+            final_touch()
             print("Finished creating cpp generator.")
             if lookahead:
                 print("\nLookahead functions found:\n")
@@ -1722,7 +1762,6 @@ class PfpInterp(object):
             sys.exit(0)
 
         ctxt._pfp__process_fields_metadata()
-
         return ctxt
 
     def _handle_empty_statement(self, node, scope, ctxt, stream):
@@ -2700,7 +2739,7 @@ class PfpInterp(object):
         else:
             self._structs.add(node.decls[0])
             self._incomplete_stack.append(False)
-
+        
         # new scope
         if not self._is_substructunion:
             scope = ctxt._pfp__scope = Scope(self._log, parent=scope)
