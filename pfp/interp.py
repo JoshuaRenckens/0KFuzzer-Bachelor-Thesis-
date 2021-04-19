@@ -659,7 +659,8 @@ def final_touch():
             if temp == 0:
                 f.write('"'+val+'"')
                 temp += 1
-            f.write(', "'+val+'"')
+            else:
+                f.write(', "'+val+'"')
         f.write("};\n")
         f.write('    reach["' + key + '"] = vect'+str(parent_number)+';\n')
         parent_number += 1
