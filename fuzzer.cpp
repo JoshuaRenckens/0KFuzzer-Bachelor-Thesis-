@@ -1192,7 +1192,7 @@ int version(int argc, char *argv[])
 }
 
 
-extern std::vector<const char*> nameVec;
+extern std::vector<std::vector<const char*>> nameVec;
 unsigned currentPos = 0;
 //No explanation for now
 int explore(int argc, char **argv)
@@ -1231,7 +1231,7 @@ extern const char* mutated;
 
 std::tuple<unsigned char *, int> get_struct(unsigned char * buffer, unsigned int position, const char* name){
 	get_parse_tree = true;
-	debug_print = false;
+	debug_print = true;
 	print_errors = true;
 	unsigned int pos = position;
 	unsigned char * buf = buffer;
@@ -1255,6 +1255,23 @@ std::tuple<unsigned char *, int> get_struct(unsigned char * buffer, unsigned int
 				buf[pos] = last_non_zero;
 			}
 			printf("Pos: %u, CVal: %d, Len: %u, Consumed: %u \n", pos, i, result, consumedRand());
+			for (std::vector<std::vector<const char*>>::iterator j = nameVec.begin(); j != nameVec.end(); ++j){
+				std::vector<const char*> tempVec = *j;
+				int t = 0;
+				for (std::vector<const char*>::iterator i = tempVec.begin(); i != tempVec.end(); ++i){
+					std::string part = *i;
+					if(t == 0){
+						std::cout << "Parent:" << part << ",";
+					}
+					else{
+						std::cout << "Current:" << part;
+					}
+					t += 1;
+				}
+				std::cout << "\n";
+			}
+			std::cout << "\n";
+			nameVec.clear();
 		}
 		pos++;
 		if (pos > consumedRand()){
@@ -1266,16 +1283,24 @@ std::tuple<unsigned char *, int> get_struct(unsigned char * buffer, unsigned int
 }
 
 extern std::map<std::string, std::vector<std::string>> get_reachabilities();
+extern std::list<std::string> get_terminals();
+extern std::list<std::string> get_non_terminals();
 
 std::list<std::list<std::string>> get_kPaths(long int k, std::map<std::string, std::vector<std::string>> reachabilities){
 	std::list<std::list<std::string>> kPaths;
-	// Get all keys from the map and save them in a vector
-	std::vector<std::string> keys;
-	for(std::map<std::string, std::vector<std::string>>:: iterator iter = reachabilities.begin(); iter != reachabilities.end(); ++iter){
-		keys.push_back(iter->first);
+	std::list<std::string> terminals = get_terminals();
+	std::list<std::string> keys = get_non_terminals();
+
+	if(k == 1){
+		terminals.merge(keys);
+		for(std::list<std::string>::iterator it = terminals.begin(); it != terminals.end(); ++it){
+			std::list<std::list<std::string>> temp_list({{*it}});
+			kPaths.merge(temp_list);
+		}
+		return kPaths;
 	}
 	// Iterate over all non-terminals
-	for(std::vector<std::string>::iterator iter = keys.begin(); iter != keys.end(); ++iter){
+	for(std::list<std::string>::iterator iter = keys.begin(); iter != keys.end(); ++iter){
 		std::list<std::list<std::string>> key_starting_paths;
 		std::list<std::string> path({*iter});
 		key_starting_paths.push_back(path);
@@ -1289,7 +1314,7 @@ std::list<std::list<std::string>> get_kPaths(long int k, std::map<std::string, s
 				std::vector<std::string> expansions = reachabilities[toExpand];
 				for (std::vector<std::string>::iterator i = expansions.begin(); i != expansions.end(); ++i){
 					std::list<std::string> toAdd = current;
-					if(std::find(keys.begin(), keys.end(), *i) != keys.end() || j == k-1){
+					if(std::find(terminals.begin(), terminals.end(), *i) == terminals.end() || j == k-1){
 						toAdd.push_back(*i);
 						if(std::find(temp_list.begin(), temp_list.end(), toAdd) == temp_list.end()){
 							temp_list.push_back(toAdd);
@@ -1303,6 +1328,31 @@ std::list<std::list<std::string>> get_kPaths(long int k, std::map<std::string, s
 		kPaths.merge(key_starting_paths);
 	}
 	return kPaths;
+}
+
+int k_path_gen(int argc, char **argv){
+	if (argc != 2){
+		printf("Wrong number of arguments \n");
+		return 1;
+	}
+	char *str = argv[1];
+	char *pEnd;
+	long int k = strtol(str, &pEnd, 10);
+	if (*pEnd != 0){
+		printf("Wrong type of argument \n");
+		return 1;
+	}
+	std::list<std::list<std::string>> k_paths = get_kPaths(k, get_reachabilities());
+	for (std::list<std::list<std::string>>::iterator it = k_paths.begin(); it != k_paths.end(); ++it){
+		std::list<std::string> k_path = *it;
+		printf("Start: ");
+		for (std::list<std::string>::iterator i = k_path.begin(); i != k_path.end(); ++i){
+			std::string part = *i;
+			std::cout << " -> " << part;
+		}
+		printf(" :, End\n");
+	}
+	return 0;
 }
 
 int test_k_paths(int argc, char **argv){
@@ -1363,8 +1413,9 @@ COMMAND commands[] = {
 	{"benchmark", benchmark, "Benchmark fuzzing"},
 	{"version", version, "Show version"},
 	{"explore", explore, "Explore (can't think of a description)"},
-	{"test_func", test_func, "Just for some testing"},
 	{"test_k_paths", test_k_paths, "Test k-path generation"},
+	{"k_path_gen", k_path_gen, "Generate files using the k-path algorithm for better grammar coverage"},
+	{"test_func", test_func, "Just for some testing"},
 };
 
 int help(int argc, char *argv[])

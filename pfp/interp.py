@@ -630,15 +630,21 @@ class Scope(object):
     # def __setattr__
 
 reachability_list = []
+terminals_list = []
+non_terminals_list = []
 final_reachability_dict = {}
 
 def record_non_terminal(classname, name, decl):
     if ((classname, decl.type.cpp) not in reachability_list):
         reachability_list.append((classname, decl.type.cpp))
+    if (decl.type.cpp not in non_terminals_list):
+        non_terminals_list.append(decl.type.cpp)
 
 def record_terminal(classname, name, decl):
     if ((classname, name) not in reachability_list):
         reachability_list.append((classname, name))
+    if (name not in terminals_list):
+        terminals_list.append(name)
 
 def final_touch():
     for i in reachability_list:
@@ -649,7 +655,7 @@ def final_touch():
             final_reachability_dict[i[0]] = [i[1]]
 
     f = open("kPathParens.cpp", "w")
-    f.write("#include <map> \n#include <vector> \n\n")
+    f.write("#include <map> \n#include <vector> \n#include <list>\n\n")
     f.write("std::map<std::string, std::vector<std::string>> get_reachabilities(){ \n    std::map<std::string, std::vector<std::string>> reach;\n")
     parent_number = 0
     for key in final_reachability_dict.keys():
@@ -664,8 +670,27 @@ def final_touch():
         f.write("};\n")
         f.write('    reach["' + key + '"] = vect'+str(parent_number)+';\n')
         parent_number += 1
-    
-    f.write("    return reach;\n}")
+    f.write("    return reach;\n}\n")
+
+    f.write("std::list<std::string> get_terminals(){ \n    std::list<std::string> terminals({")
+    count = 0
+    for terminal in terminals_list:
+        if count == 0:
+            f.write('"'+terminal+'"')
+        else:
+            f.write(', "'+terminal+'"')
+        count += 1
+    f.write("});\n    return terminals;\n}\n")
+
+    f.write("std::list<std::string> get_non_terminals(){ \n    std::list<std::string> non_terminals({")
+    count = 0
+    for non_terminal in non_terminals_list:
+        if count == 0:
+            f.write('"'+non_terminal+'"')
+        else:
+            f.write(', "'+non_terminal+'"')
+        count += 1
+    f.write("});\n    return non_terminals;\n}\n")
     f.close
 
 class PfpInterp(object):
