@@ -632,28 +632,41 @@ class Scope(object):
 reachability_list = []
 terminals_list = []
 non_terminals_list = []
+type_dict = {}
 final_reachability_dict = {}
 
-def record_non_terminal(classname, name, decl):
-    if ((classname, decl.type.cpp) not in reachability_list):
-        reachability_list.append((classname, decl.type.cpp))
-    if (decl.type.cpp not in non_terminals_list):
-        non_terminals_list.append(decl.type.cpp)
+def record_non_terminal(classname,  name, decl):
+    if (decl.type.cpp not in type_dict.keys()):
+        type_dict[decl.type.cpp] = [name]
+    elif (name not in type_dict[decl.type.cpp]):
+        type_dict[decl.type.cpp].append(name)
+    if ((classname, name) not in reachability_list):
+        reachability_list.append((classname, name))
+    if (name not in non_terminals_list):
+        non_terminals_list.append(name)
 
-def record_terminal(classname, name, decl):
+def record_terminal(classname, name):
     if ((classname, name) not in reachability_list):
         reachability_list.append((classname, name))
     if (name not in terminals_list):
         terminals_list.append(name)
 
 def final_touch():
+    for key in type_dict.keys():
+        print('Key: '+ key+ ', Values:'+str(type_dict[key]))
+
     for i in reachability_list:
         if i[0] in final_reachability_dict.keys():
             if i[1] not in final_reachability_dict[i[0]]:
                 final_reachability_dict[i[0]].append(i[1])
         else:
             final_reachability_dict[i[0]] = [i[1]]
-
+    for key in type_dict.keys():
+        values = final_reachability_dict[key]
+        for value in type_dict[key]:
+            final_reachability_dict[value] = values
+        del final_reachability_dict[key]
+    
     f = open("kPathParens.cpp", "w")
     f.write("#include <map> \n#include <vector> \n#include <list>\n\n")
     f.write("std::map<std::string, std::vector<std::string>> get_reachabilities(){ \n    std::map<std::string, std::vector<std::string>> reach;\n")
@@ -736,6 +749,8 @@ class PfpInterp(object):
             node.cpp = "GENERATE"
             if len(self._incomplete_stack) > 1:
                 node.cpp += "_VAR"
+            else:
+                record_non_terminal('file', node.name, node)
             self._variable_types[node.name] = classname
             node.cpp += "(" + name + ", ::g->" + node.name + ".generate("
             arg_num = 0
@@ -932,14 +947,14 @@ class PfpInterp(object):
             elif False and is_union and decl.type.cpp == "std::string" and decl.type.__class__ == AST.ArrayDecl:
                 cpp += "\t" + " ".join(decl.type.type.type.names) + " " + name + "_var[" + decl.type.dim.cpp + "];\n"
             elif decl.bitsize is not None:
-                record_terminal(classname, name, decl)
+                record_terminal(classname,  name)
                 if "/**/" in decl.bitsize.cpp:
                     cpp += "\t" + decl.type.cpp + " " + name + "_var;  //  : " + decl.bitsize.cpp.replace("/**/", "") + ";\n"
                 else:
                     cpp += "\t" + decl.type.cpp + " " + name + "_var : " + decl.bitsize.cpp + ";\n"
             else:
                 cpp += "\t" + decl.type.cpp + " " + name + "_var;\n"
-                record_terminal(classname, name, decl)
+                record_terminal(classname, name)
         if is_union:
             cpp += "// };\n"
         cpp += "\npublic:\n"
@@ -1031,6 +1046,8 @@ class PfpInterp(object):
                 node.cpp = "GENERATE"
                 if is_var:
                     node.cpp += "_VAR"
+                else:
+                    record_non_terminal('file', node.name, node)
                 self._variable_types[field_name] = classname
                 node.cpp += "(" + name + ", ::g->" + field_name + ".generate("
                 arg_num = 0
