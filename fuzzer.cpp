@@ -1192,128 +1192,42 @@ int version(int argc, char *argv[])
 }
 
 
-extern std::vector<std::vector<const char*>> nameVec;
+extern std::vector<std::vector<std::pair<std::string, int>>> found_paths;
 unsigned currentPos = 0;
-//No explanation for now
-int explore(int argc, char **argv)
-{
-	get_parse_tree = true;
-	debug_print = false;
-	print_errors = true;
-	unsigned int pos=0;
-	unsigned char * buffer = new unsigned char [MAX_RAND_SIZE];
-	int rand_fd = open("/dev/urandom", O_RDONLY);
-	ssize_t r = read(rand_fd, buffer, MAX_RAND_SIZE);
-	if (r != MAX_RAND_SIZE)
-		printf("Read only %ld bytes from /dev/urandom\n", r);
-	close(rand_fd);
-	unsigned char * idk = NULL;
-	while (true) {
-		int j = 0;
-  		while(j < 30){
-			currentPos = pos;
-  			int test = rand() % 256;
-			test = test + 1;
-			buffer[pos] = test;
-			unsigned int result = afl_pre_save_handler(buffer, MAX_RAND_SIZE, &idk);
-			printf("Pos: %u, CVal: %d, Try: %d/30, Len: %u, Consumed: %u \n", pos, test, j+1, result, consumedRand());
-			j++;
-		}
-		pos++;
-		if (pos > consumedRand()){
-			break;
-		}
-	}
-	return 0;
-}
 
-extern const char* mutated;
+extern std::map<std::pair<std::string, int>, std::vector<std::pair<std::string, int>>> get_reachabilities();
+extern std::list<std::pair<std::string, int>> get_terminals();
+extern std::list<std::pair<std::string, int>> get_non_terminals();
 
-std::tuple<unsigned char *, int> get_struct(unsigned char * buffer, unsigned int position, const char* name){
-	get_parse_tree = true;
-	debug_print = true;
-	print_errors = true;
-	unsigned int pos = position;
-	unsigned char * buf = buffer;
-	unsigned char * idk = NULL;
-	std::tuple<unsigned char *, int> tuple;
-	unsigned int result = 0;
-	int last_non_zero = 0;
-	while(true){
-		for (int i = 0; i < 256; i++){
-			currentPos = pos;
-			buf[pos] = i;
-			result = afl_pre_save_handler(buf, MAX_RAND_SIZE, &idk);
-			if (result != 0){
-				last_non_zero = i;
-			}
-			if (strcmp(mutated, name) == 0){
-				tuple = std::make_tuple(buf, pos+1);
-				return tuple;
-			}
-			if (i == 255 && result == 0){
-				buf[pos] = last_non_zero;
-			}
-			printf("Pos: %u, CVal: %d, Len: %u, Consumed: %u \n", pos, i, result, consumedRand());
-			for (std::vector<std::vector<const char*>>::iterator j = nameVec.begin(); j != nameVec.end(); ++j){
-				std::vector<const char*> tempVec = *j;
-				int t = 0;
-				for (std::vector<const char*>::iterator i = tempVec.begin(); i != tempVec.end(); ++i){
-					std::string part = *i;
-					if(t == 0){
-						std::cout << "Parent:" << part << ",";
-					}
-					else{
-						std::cout << "Current:" << part;
-					}
-					t += 1;
-				}
-				std::cout << "\n";
-			}
-			std::cout << "\n";
-			nameVec.clear();
-		}
-		pos++;
-		if (pos > consumedRand()){
-			break;
-		}
-	}
-	tuple = std::make_tuple(buffer, position+1);
-	return tuple;
-}
-
-extern std::map<std::string, std::vector<std::string>> get_reachabilities();
-extern std::list<std::string> get_terminals();
-extern std::list<std::string> get_non_terminals();
-
-std::list<std::list<std::string>> get_kPaths(long int k, std::map<std::string, std::vector<std::string>> reachabilities){
-	std::list<std::list<std::string>> kPaths;
-	std::list<std::string> terminals = get_terminals();
-	std::list<std::string> keys = get_non_terminals();
+std::list<std::vector<std::pair<std::string,int>>> get_kPaths(long int k, std::map<std::pair<std::string, int>, std::vector<std::pair<std::string,int>>> reachabilities){
+	std::list<std::vector<std::pair<std::string, int>>> kPaths;
+	std::list<std::pair<std::string, int>> terminals = get_terminals();
+	std::list<std::pair<std::string, int>> keys = get_non_terminals();
 
 	if(k == 1){
 		terminals.merge(keys);
-		for(std::list<std::string>::iterator it = terminals.begin(); it != terminals.end(); ++it){
-			std::list<std::list<std::string>> temp_list({{*it}});
+		for(std::list<std::pair<std::string, int>>::iterator it = terminals.begin(); it != terminals.end(); ++it){
+			std::pair<std::string, int> test = *it;
+			std::list<std::vector<std::pair<std::string, int>>> temp_list({{*it}});
 			kPaths.merge(temp_list);
 		}
 		return kPaths;
 	}
 	// Iterate over all non-terminals
-	for(std::list<std::string>::iterator iter = keys.begin(); iter != keys.end(); ++iter){
-		std::list<std::list<std::string>> key_starting_paths;
-		std::list<std::string> path({*iter});
+	for(std::list<std::pair<std::string, int>>::iterator iter = keys.begin(); iter != keys.end(); ++iter){
+		std::list<std::vector<std::pair<std::string, int>>> key_starting_paths;
+		std::vector<std::pair<std::string, int>> path({*iter});
 		key_starting_paths.push_back(path);
 		int j = 1;
 		// For every non-terminal generate the reachable k-paths
 		while(j < k){
-			std::list<std::list<std::string>> temp_list;
-			for (std::list<std::list<std::string>>::iterator it = key_starting_paths.begin(); it != key_starting_paths.end(); ++it){
-				std::list<std::string> current = *it;
-				std::string toExpand = current.back();
-				std::vector<std::string> expansions = reachabilities[toExpand];
-				for (std::vector<std::string>::iterator i = expansions.begin(); i != expansions.end(); ++i){
-					std::list<std::string> toAdd = current;
+			std::list<std::vector<std::pair<std::string, int>>> temp_list;
+			for (std::list<std::vector<std::pair<std::string, int>>>::iterator it = key_starting_paths.begin(); it != key_starting_paths.end(); ++it){
+				std::vector<std::pair<std::string, int>> current = *it;
+				std::pair<std::string, int> toExpand = current.back();
+				std::vector<std::pair<std::string, int>> expansions = reachabilities[toExpand];
+				for (std::vector<std::pair<std::string, int>>::iterator i = expansions.begin(); i != expansions.end(); ++i){
+					std::vector<std::pair<std::string, int>> toAdd = current;
 					if(std::find(terminals.begin(), terminals.end(), *i) == terminals.end() || j == k-1){
 						toAdd.push_back(*i);
 						if(std::find(temp_list.begin(), temp_list.end(), toAdd) == temp_list.end()){
@@ -1330,7 +1244,17 @@ std::list<std::list<std::string>> get_kPaths(long int k, std::map<std::string, s
 	return kPaths;
 }
 
+int position;
+int path_pos;
+bool found_path;
+std::vector<std::pair<std::string, int>> cur_path;
+extern bool k_paths;
+
 int k_path_gen(int argc, char **argv){
+	get_parse_tree = true;
+	debug_print = true;
+	print_errors = true;
+	//make sure we have the right amount and type of arguments
 	if (argc != 2){
 		printf("Wrong number of arguments \n");
 		return 1;
@@ -1342,15 +1266,66 @@ int k_path_gen(int argc, char **argv){
 		printf("Wrong type of argument \n");
 		return 1;
 	}
-	std::list<std::list<std::string>> k_paths = get_kPaths(k, get_reachabilities());
-	for (std::list<std::list<std::string>>::iterator it = k_paths.begin(); it != k_paths.end(); ++it){
-		std::list<std::string> k_path = *it;
-		printf("Start: ");
-		for (std::list<std::string>::iterator i = k_path.begin(); i != k_path.end(); ++i){
-			std::string part = *i;
-			std::cout << " -> " << part;
+	k_paths = true;
+
+
+	//create a buffer that generates input containing the k-paths
+	unsigned char * buffer;
+	std::list<std::vector<std::pair<std::string, int>>> k_paths = get_kPaths(k, get_reachabilities());
+	std::list<std::vector<std::pair<std::string, int>>>::iterator it = k_paths.begin();
+	while(it != k_paths.end()){
+		found_path = false;
+		path_pos = 0;
+		cur_path = *it;
+		buffer = new unsigned char [MAX_RAND_SIZE];
+		int rand_fd = open("/dev/urandom", O_RDONLY);
+		ssize_t r = read(rand_fd, buffer, MAX_RAND_SIZE);
+		if (r != MAX_RAND_SIZE)
+			printf("Read only %ld bytes from /dev/urandom\n", r);
+		close(rand_fd);
+		unsigned char * idk = NULL;
+		position = 0;
+		unsigned int result = 0;
+		int last_non_zero = 0;
+		while(true){
+			int pos_val = 0;
+			while(pos_val < 256){
+				//Change the value of the current byte in the randomness source
+				buffer[position] = pos_val;
+				result = afl_pre_save_handler(buffer, MAX_RAND_SIZE, &idk);
+				if (result != 0){
+					last_non_zero = pos_val;
+					if (found_path){
+						break;
+					}
+				}
+				//Reset found paths if we didn't find path we wanted
+				found_paths.clear();
+				//Avoid locking ourselves into a broken generation
+				if (pos_val == 255 && result == 0){
+					buffer[position] = last_non_zero;
+				}
+				printf("Pos: %u, CVal: %d, Len: %u \n", position, pos_val, result);
+				pos_val++;
+			}
+			if (found_path){
+				break;
+			}
+			position++;
 		}
-		printf(" :, End\n");
+		//Generate the actual input here
+
+		std::cout << "K path before size:" << k_paths.size() << "\n";
+		for (std::vector<std::vector<std::pair<std::string, int>>>::iterator it = found_paths.begin(); it != found_paths.end(); ++it){
+			std::vector<std::pair<std::string, int>> current = *it;
+			k_paths.erase(std::remove(k_paths.begin(), k_paths.end(), *it), k_paths.end());
+		}
+		std::cout << "Found path size:" << found_paths.size() << "\n";
+		std::cout << "K path after size:" << k_paths.size() << "\n";
+		found_paths.clear();
+		if(k_paths.size() == 0){
+			break;
+		}
 	}
 	return 0;
 }
@@ -1367,30 +1342,16 @@ int test_k_paths(int argc, char **argv){
 		printf("Wrong type of argument \n");
 		return 1;
 	}
-	std::list<std::list<std::string>> k_paths = get_kPaths(k, get_reachabilities());
-	for (std::list<std::list<std::string>>::iterator it = k_paths.begin(); it != k_paths.end(); ++it){
-		std::list<std::string> k_path = *it;
+	std::list<std::vector<std::pair<std::string, int >>> k_paths = get_kPaths(k, get_reachabilities());
+	for (std::list<std::vector<std::pair<std::string, int>>>::iterator it = k_paths.begin(); it != k_paths.end(); ++it){
+		std::vector<std::pair<std::string, int>> k_path = *it;
 		printf("Start: ");
-		for (std::list<std::string>::iterator i = k_path.begin(); i != k_path.end(); ++i){
-			std::string part = *i;
-			std::cout << " -> " << part;
+		for (std::vector<std::pair<std::string, int>>::iterator i = k_path.begin(); i != k_path.end(); ++i){
+			std::pair<std::string, int> part = *i;
+			std::cout << " -> (" << part.first << "," << part.second << ")";
 		}
 		printf(" :, End\n");
 	}
-	return 0;
-}
-
-int test_func(int argc, char **argv){
-	unsigned char * buffer = new unsigned char [MAX_RAND_SIZE];
-	int rand_fd = open("/dev/urandom", O_RDONLY);
-	ssize_t r = read(rand_fd, buffer, MAX_RAND_SIZE);
-	if (r != MAX_RAND_SIZE)
-		printf("Read only %ld bytes from /dev/urandom\n", r);
-	close(rand_fd);
-	const char* name = "expr";
-	std::tuple<unsigned char *, int> result = get_struct(buffer, 0, name);
-	unsigned int pos = std::get<1>(result);
-	printf("Pos: %u\n", pos);
 	return 0;
 }
 
@@ -1412,10 +1373,8 @@ COMMAND commands[] = {
 	{"test", test, "Test if fuzzer is working properly (sanity checks)"},
 	{"benchmark", benchmark, "Benchmark fuzzing"},
 	{"version", version, "Show version"},
-	{"explore", explore, "Explore (can't think of a description)"},
 	{"test_k_paths", test_k_paths, "Test k-path generation"},
 	{"k_path_gen", k_path_gen, "Generate files using the k-path algorithm for better grammar coverage"},
-	{"test_func", test_func, "Just for some testing"},
 };
 
 int help(int argc, char *argv[])

@@ -62,14 +62,15 @@ struct stack_cell {
 	unsigned rand_start2 = 0;
 	unsigned min = UINT_MAX;
 	unsigned max = 0;
-	stack_cell(const char* name, unsigned rand_start, unsigned rand_start2) : name(name), rand_start(rand_start), rand_start2(rand_start2) {}
+	unsigned line_no = 0;
+	stack_cell(const char* name, unsigned rand_start, unsigned rand_start2, unsigned line_no) : name(name), rand_start(rand_start), rand_start2(rand_start2), line_no(line_no) {}
 	void clear() {
 		counts.clear();
 		min = UINT_MAX;
 		max = 0;
 	}
 };
-stack_cell root_cell("file", 0, 0);
+stack_cell root_cell("file", 0, 0, 0);
 std::vector<stack_cell> generator_stack = {root_cell};
 
 

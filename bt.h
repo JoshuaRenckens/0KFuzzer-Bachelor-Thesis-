@@ -14,6 +14,7 @@
 #include <sys/stat.h>
 #include <sys/mman.h>
 #include <fcntl.h>
+#include <list>
 
 #include "file_accessor.h"
 
@@ -111,20 +112,20 @@ const int TRUE = 1;
 const int False = 0;
 const int FALSE = 0;
 
-#define GENERATE_VAR(name, value) do { \
-	start_generation(#name);       \
+#define GENERATE_VAR(line_no, name, value) do { \
+	start_generation(#name, line_no);       \
 	name ## _var = (value);        \
 	name ## _exists = true;        \
 	end_generation();              \
 	} while (0)
 
-#define GENERATE(name, value) do {     \
-	start_generation(#name);       \
+#define GENERATE(line_no, name, value) do {     \
+	start_generation(#name, line_no);       \
 	(value);                       \
 	end_generation();              \
 	} while (0)
 
-#define GENERATE_EXISTS(name, value)   \
+#define GENERATE_EXISTS(line_no, name, value)   \
 	name ## _exists = true
 
 
@@ -156,20 +157,48 @@ extern bool is_big_endian;
 extern bool is_padded_bitfield;
 void generate_file();
 
-std::vector<const char*> nameVec;
+std::vector<std::vector<std::pair<std::string, int>>> found_paths;
+std::vector<std::pair<std::string, int>> k_path_stack{std::make_pair("file", -1)};
+extern int position;
+extern bool found_path;
+extern std::vector<std::pair<std::string, int>> cur_path;
+extern int path_pos;
+long unsigned int k = 0;
+bool k_paths = false;
 
-void start_generation(const char* name) {
-	nameVec.push_back(name);
+
+void start_generation(const char* name, unsigned line_no) {
+	if (k_paths){
+		k_path_stack.emplace_back(std::make_pair(name, line_no));
+		std::cout << "Stack size "<< k_path_stack.size() << " Found paths size: " << found_paths.size() << "\n";
+		if (k == 0)
+			k = cur_path.size();
+		std::vector<std::pair<std::string, int>> temp_path;
+		if (k_path_stack.size() > k){
+			long unsigned int i = k_path_stack.size()-k;
+			while (i < k_path_stack.size()){
+				temp_path.emplace_back(k_path_stack[i]);
+				i++;
+			}
+		}
+		std::cout << "temp path size: " << temp_path.size() << "\n";
+		if (!found_path){
+			if (cur_path == temp_path)
+				found_path = true;
+		}
+		if (std::find(found_paths.begin(), found_paths.end(), temp_path) == found_paths.end() && temp_path.size() == k)
+			found_paths.emplace_back(temp_path);
+	}
 	if (!get_parse_tree)
 		return;
-	generator_stack.emplace_back(name, file_acc.rand_prev, file_acc.rand_pos);
+	generator_stack.emplace_back(name, file_acc.rand_prev, file_acc.rand_pos, line_no);
 	file_acc.rand_prev = file_acc.rand_pos;
 	file_acc.rand_last = UINT_MAX;
 }
 
 const char* mutated = "";
 void end_generation() {
-
+	k_path_stack.pop_back();
 	if (!get_parse_tree)
 		return;
 	stack_cell& back = generator_stack.back();
@@ -179,7 +208,7 @@ void end_generation() {
 	if (mutatedDecision){
 		mutated = back.name;
 		mutatedDecision = false;
-		printf("MUTATED CHUNK %s \n", back.name);
+		//printf("MUTATED CHUNK %s, PEVIOUS CHUNK %s, Line Number %d \n", back.name, prev.name, back.line_no);
 	}
 	
 	if (smart_mutation && back.rand_start == rand_start && (is_optional || strcmp(back.name, chunk_name) == 0)) {

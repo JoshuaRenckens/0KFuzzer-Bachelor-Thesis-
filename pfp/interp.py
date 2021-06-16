@@ -636,24 +636,23 @@ type_dict = {}
 final_reachability_dict = {}
 
 def record_non_terminal(classname,  name, decl):
+    line_no = decl.coord.line
     if (decl.type.cpp not in type_dict.keys()):
-        type_dict[decl.type.cpp] = [name]
-    elif (name not in type_dict[decl.type.cpp]):
-        type_dict[decl.type.cpp].append(name)
-    if ((classname, name) not in reachability_list):
-        reachability_list.append((classname, name))
-    if (name not in non_terminals_list):
-        non_terminals_list.append(name)
+        type_dict[decl.type.cpp] = [(name, line_no)]
+    elif ((name, line_no) not in type_dict[decl.type.cpp]):
+        type_dict[decl.type.cpp].append((name, line_no))
+    if ((classname, (name, line_no)) not in reachability_list):
+        reachability_list.append((classname, (name, line_no)))
+    if ((name, line_no) not in non_terminals_list):
+        non_terminals_list.append((name, line_no))
 
-def record_terminal(classname, name):
-    if ((classname, name) not in reachability_list):
-        reachability_list.append((classname, name))
-    if (name not in terminals_list):
-        terminals_list.append(name)
+def record_terminal(classname, name, line_no):
+    if ((classname, (name, line_no)) not in reachability_list):
+        reachability_list.append((classname, (name, line_no)))
+    if ((name, line_no) not in terminals_list):
+        terminals_list.append((name, line_no))
 
 def final_touch():
-    for key in type_dict.keys():
-        print('Key: '+ key+ ', Values:'+str(type_dict[key]))
 
     for i in reachability_list:
         if i[0] in final_reachability_dict.keys():
@@ -666,42 +665,44 @@ def final_touch():
         for value in type_dict[key]:
             final_reachability_dict[value] = values
         del final_reachability_dict[key]
-    
+    if "file" in final_reachability_dict.keys():
+        final_reachability_dict[("file", -1)] = final_reachability_dict.pop("file")
+
     f = open("kPathParens.cpp", "w")
-    f.write("#include <map> \n#include <vector> \n#include <list>\n\n")
-    f.write("std::map<std::string, std::vector<std::string>> get_reachabilities(){ \n    std::map<std::string, std::vector<std::string>> reach;\n")
+    f.write("#include <map> \n#include <vector> \n#include <list> \n\n")
+    f.write("std::map<std::pair<std::string, int>, std::vector<std::pair<std::string, int>>> get_reachabilities(){ \n    std::map<std::pair<std::string, int>, std::vector<std::pair<std::string, int>>> reach;\n")
     parent_number = 0
     for key in final_reachability_dict.keys():
-        f.write("    std::vector<std::string> vect"+str(parent_number)+"{")
+        f.write("    std::vector<std::pair<std::string,int>> vect"+str(parent_number)+"{")
         temp = 0
         for val in final_reachability_dict[key]:
             if temp == 0:
-                f.write('"'+val+'"')
+                f.write('std::make_pair(std::string("'+val[0]+'"),'+str(val[1])+")")
                 temp += 1
             else:
-                f.write(', "'+val+'"')
+                f.write(', std::make_pair(std::string("'+val[0]+'"),'+str(val[1])+")")
         f.write("};\n")
-        f.write('    reach["' + key + '"] = vect'+str(parent_number)+';\n')
+        f.write('    reach[std::make_pair(std::string("' + key[0] + '"),'+ str(key[1]) +')] = vect'+str(parent_number)+';\n')
         parent_number += 1
     f.write("    return reach;\n}\n")
 
-    f.write("std::list<std::string> get_terminals(){ \n    std::list<std::string> terminals({")
+    f.write("std::list<std::pair<std::string, int>> get_terminals(){ \n    std::list<std::pair<std::string, int>> terminals({")
     count = 0
     for terminal in terminals_list:
         if count == 0:
-            f.write('"'+terminal+'"')
+            f.write('std::make_pair(std::string("'+terminal[0]+'"),'+str(terminal[1])+')')
         else:
-            f.write(', "'+terminal+'"')
+            f.write(', std::make_pair(std::string("'+terminal[0]+'"),'+str(terminal[1])+')')
         count += 1
     f.write("});\n    return terminals;\n}\n")
 
-    f.write("std::list<std::string> get_non_terminals(){ \n    std::list<std::string> non_terminals({")
+    f.write("std::list<std::pair<std::string, int>> get_non_terminals(){ \n    std::list<std::pair<std::string, int>> non_terminals({")
     count = 0
     for non_terminal in non_terminals_list:
         if count == 0:
-            f.write('"'+non_terminal+'"')
+            f.write('std::make_pair(std::string("'+non_terminal[0]+'"),'+str(non_terminal[1])+')')
         else:
-            f.write(', "'+non_terminal+'"')
+            f.write(', std::make_pair(std::string("'+non_terminal[0]+'"),'+str(non_terminal[1])+')')
         count += 1
     f.write("});\n    return non_terminals;\n}\n")
     f.close
@@ -752,7 +753,8 @@ class PfpInterp(object):
             else:
                 record_non_terminal('file', node.name, node)
             self._variable_types[node.name] = classname
-            node.cpp += "(" + name + ", ::g->" + node.name + ".generate("
+            print("GENERATE" + node.name + ", Line:" + str(node.coord.line))
+            node.cpp += "(" + str(node.coord.line) + ", " + name + ", ::g->" + node.name + ".generate("
             arg_num = 0
             if hasattr(node.type, "args") and node.type.args:
                 for arg in node.type.args.exprs:
@@ -943,18 +945,21 @@ class PfpInterp(object):
         for name, decl in variables:
             if hasattr(decl, "is_structunion"):
                 cpp += "\t" + decl.type.cpp + "* " + name + "_var;\n"
+                print("1. Name: "+ name+ ", Line: "+str(decl.coord.line))
                 record_non_terminal(classname, name, decl)
             elif False and is_union and decl.type.cpp == "std::string" and decl.type.__class__ == AST.ArrayDecl:
                 cpp += "\t" + " ".join(decl.type.type.type.names) + " " + name + "_var[" + decl.type.dim.cpp + "];\n"
             elif decl.bitsize is not None:
-                record_terminal(classname,  name)
+                print("2. Name: "+ name+ ", Line: "+str(decl.coord.line))
+                record_terminal(classname,  name, decl.coord.line)
                 if "/**/" in decl.bitsize.cpp:
                     cpp += "\t" + decl.type.cpp + " " + name + "_var;  //  : " + decl.bitsize.cpp.replace("/**/", "") + ";\n"
                 else:
                     cpp += "\t" + decl.type.cpp + " " + name + "_var : " + decl.bitsize.cpp + ";\n"
             else:
                 cpp += "\t" + decl.type.cpp + " " + name + "_var;\n"
-                record_terminal(classname, name)
+                print("3. Name: "+ name+ ", Line: "+str(decl.coord.line))
+                record_terminal(classname, name, decl.coord.line)
         if is_union:
             cpp += "// };\n"
         cpp += "\npublic:\n"
@@ -1047,9 +1052,11 @@ class PfpInterp(object):
                 if is_var:
                     node.cpp += "_VAR"
                 else:
+                    print("0. Name: "+ node.name + ", Line: "+str(node.coord.line))
                     record_non_terminal('file', node.name, node)
                 self._variable_types[field_name] = classname
-                node.cpp += "(" + name + ", ::g->" + field_name + ".generate("
+                print("GENERATE: " + node.name + ", Line:" + str(node.coord.line))
+                node.cpp += "(" + str(node.coord.line) + ", " + name + ", ::g->" + field_name + ".generate("
                 arg_num = 0
                 todofield = "/*TODO field " + field_name + "("
                 if hasattr(node.type, "args") and node.type.args:
@@ -2294,7 +2301,8 @@ class PfpInterp(object):
                 if len(self._incomplete_stack) > 1:
                     node.cpp += "_VAR"
                 self._variable_types[node.name] = classname.replace(" ", "_") + "_array_class"
-                node.cpp += "(" + node.originalname + ", ::g->" + node.name + ".generate("
+                print("GENERATE: " + node.name + ", Line:" + str(node.coord.line))
+                node.cpp += "(" + str(node.coord.line) + ", "  + node.originalname + ", ::g->" + node.name + ".generate("
                 if node.type.dim is not None:
                     node.cpp += node.type.dim.cpp
                 if node.init is not None:
@@ -2315,7 +2323,8 @@ class PfpInterp(object):
                 if len(self._incomplete_stack) > 1:
                     node.cpp += "_VAR"
                 self._variable_types[node.name] = classname
-                node.cpp += "(" + node.name + ", " + classname + "_generate("
+                print("GENERATE: " + node.name + ", Line:" + str(node.coord.line))
+                node.cpp += "(" + str(node.coord.line) + ", "  + node.name + ", " + classname + "_generate("
                 if node.init is not None:
                     self._handle_node(node.init, scope, ctxt, stream)
                     node.cpp += "{ "
@@ -2419,7 +2428,8 @@ class PfpInterp(object):
                     if len(self._incomplete_stack) > 1:
                         node.cpp += "_VAR"
                     self._variable_types[node.name] = classnamebits
-                    node.cpp += "(" + node.originalname + ", ::g->" + node.name + ".generate("
+                    print("GENERATE: " + node.name + ", Line:" + str(node.coord.line))
+                    node.cpp += "(" + str(node.coord.line) + ", "  + node.originalname + ", ::g->" + node.name + ".generate("
                     if is_bitfield:
                         node.cpp += node.bitsize.cpp
                     if node.init is not None:
@@ -2441,7 +2451,8 @@ class PfpInterp(object):
                     if len(self._incomplete_stack) > 1:
                         node.cpp += "_VAR"
                     self._variable_types[node.name] = classname
-                    node.cpp += "(" + node.name + ", " + classname + "_generate("
+                    print("GENERATE: " + node.name + ", Line:" + str(node.coord.line))
+                    node.cpp += "(" + str(node.coord.line) + ", "  + node.name + ", " + classname + "_generate("
                     if node.init is not None:
                         self._handle_node(node.init, scope, ctxt, stream)
                         node.cpp += "{ "
