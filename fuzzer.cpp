@@ -1192,42 +1192,43 @@ int version(int argc, char *argv[])
 }
 
 
-extern std::vector<std::vector<std::pair<std::string, int>>> found_paths;
+extern std::vector<std::vector<int>> found_paths;
 unsigned currentPos = 0;
 
-extern std::map<std::pair<std::string, int>, std::vector<std::pair<std::string, int>>> get_reachabilities();
-extern std::list<std::pair<std::string, int>> get_terminals();
-extern std::list<std::pair<std::string, int>> get_non_terminals();
+extern std::map<int, std::vector<int>> get_reachabilities();
+extern std::map<int, std::vector<std::pair<int, int>>> get_paths();
+extern std::list<int> get_terminals();
+extern std::list<int> get_non_terminals();
 
-std::list<std::vector<std::pair<std::string,int>>> get_kPaths(long int k, std::map<std::pair<std::string, int>, std::vector<std::pair<std::string,int>>> reachabilities){
-	std::list<std::vector<std::pair<std::string, int>>> kPaths;
-	std::list<std::pair<std::string, int>> terminals = get_terminals();
-	std::list<std::pair<std::string, int>> keys = get_non_terminals();
+std::list<std::vector<int>> get_kPaths(int k, std::map<int, std::vector<int>> reachabilities){
+	//create list of k-paths from the reachability graph
+	std::list<std::vector<int>> kPaths;
+	auto terminals = get_terminals();
+	auto keys = get_non_terminals();
 
 	if(k == 1){
 		terminals.merge(keys);
-		for(std::list<std::pair<std::string, int>>::iterator it = terminals.begin(); it != terminals.end(); ++it){
-			std::pair<std::string, int> test = *it;
-			std::list<std::vector<std::pair<std::string, int>>> temp_list({{*it}});
+		for(auto it = terminals.begin(); it != terminals.end(); ++it){
+			std::list<std::vector<int>> temp_list({{*it}});
 			kPaths.merge(temp_list);
 		}
 		return kPaths;
 	}
 	// Iterate over all non-terminals
-	for(std::list<std::pair<std::string, int>>::iterator iter = keys.begin(); iter != keys.end(); ++iter){
-		std::list<std::vector<std::pair<std::string, int>>> key_starting_paths;
-		std::vector<std::pair<std::string, int>> path({*iter});
+	for(auto iter = keys.begin(); iter != keys.end(); ++iter){
+		std::list<std::vector<int>> key_starting_paths;
+		std::vector<int> path({*iter});
 		key_starting_paths.push_back(path);
 		int j = 1;
 		// For every non-terminal generate the reachable k-paths
 		while(j < k){
-			std::list<std::vector<std::pair<std::string, int>>> temp_list;
-			for (std::list<std::vector<std::pair<std::string, int>>>::iterator it = key_starting_paths.begin(); it != key_starting_paths.end(); ++it){
-				std::vector<std::pair<std::string, int>> current = *it;
-				std::pair<std::string, int> toExpand = current.back();
-				std::vector<std::pair<std::string, int>> expansions = reachabilities[toExpand];
-				for (std::vector<std::pair<std::string, int>>::iterator i = expansions.begin(); i != expansions.end(); ++i){
-					std::vector<std::pair<std::string, int>> toAdd = current;
+			std::list<std::vector<int>> temp_list;
+			for (auto it = key_starting_paths.begin(); it != key_starting_paths.end(); ++it){
+				auto current = *it;
+				auto toExpand = current.back();
+				auto expansions = reachabilities[toExpand];
+				for (auto i = expansions.begin(); i != expansions.end(); ++i){
+					auto toAdd = current;
 					if(std::find(terminals.begin(), terminals.end(), *i) == terminals.end() || j == k-1){
 						toAdd.push_back(*i);
 						if(std::find(temp_list.begin(), temp_list.end(), toAdd) == temp_list.end()){
@@ -1244,11 +1245,44 @@ std::list<std::vector<std::pair<std::string,int>>> get_kPaths(long int k, std::m
 	return kPaths;
 }
 
-int position;
+std::vector<int> get_Path(std::map<int, std::vector<std::pair<int,int>>> paths, std::vector<int> path, int start_path, std::map<int, std::vector<int>> reach){
+	auto start = reach[path[path.size()-1]];
+	int shortest_way = -2;
+	int shortest_no = INT_MAX;
+	for(auto it = start.begin(); it != start.end(); ++it){
+		auto options = paths[*it];
+		for(auto option = options.begin(); option != options.end(); ++option){
+			auto o = *option;
+			if (start_path == o.second){
+				if (o.first < shortest_no){
+					shortest_way = *it;
+					shortest_no = o.first;
+				}
+				break;
+			}
+		}
+		if (shortest_no == 1){
+			break;
+		}
+	}
+	if (shortest_no != 0){
+		path.emplace_back(shortest_way);
+	}
+	if(shortest_no > 1){
+		path = get_Path(paths, path, start_path, reach);
+	}
+	return path;
+}
+
+unsigned int position;
 int path_pos;
 bool found_path;
-std::vector<std::pair<std::string, int>> cur_path;
+std::vector<int> to_cover;
+std::vector<int> chosen;
 extern bool k_paths;
+std::vector<int> k_path_stack;
+unsigned int previous_gen_pos;
+int tries = 0;
 
 int k_path_gen(int argc, char **argv){
 	get_parse_tree = true;
@@ -1261,7 +1295,7 @@ int k_path_gen(int argc, char **argv){
 	}
 	char *str = argv[1];
 	char *pEnd;
-	long int k = strtol(str, &pEnd, 10);
+	int k = strtol(str, &pEnd, 10);
 	if (*pEnd != 0){
 		printf("Wrong type of argument \n");
 		return 1;
@@ -1271,12 +1305,30 @@ int k_path_gen(int argc, char **argv){
 
 	//create a buffer that generates input containing the k-paths
 	unsigned char * buffer;
-	std::list<std::vector<std::pair<std::string, int>>> k_paths = get_kPaths(k, get_reachabilities());
-	std::list<std::vector<std::pair<std::string, int>>>::iterator it = k_paths.begin();
+	auto reachabilities = get_reachabilities();
+	auto k_paths_list = get_kPaths(k, reachabilities);
+	std::vector<std::vector<int>> k_paths(k_paths_list.begin(), k_paths_list.end());
+	std::random_shuffle(k_paths.begin(), k_paths.end());
+	auto it = k_paths.begin();
+	int generated_inputs = 0;
 	while(it != k_paths.end()){
+		// initialize variables to find the chosen k-path
 		found_path = false;
 		path_pos = 0;
-		cur_path = *it;
+		auto cur_path = *it;
+		to_cover.clear();
+		if(cur_path[0] != -1){
+			to_cover.emplace_back(-1);
+			auto paths = get_paths();
+			to_cover = get_Path(paths, to_cover, cur_path[0], reachabilities);
+			to_cover.insert(to_cover.end(), cur_path.begin(), cur_path.end());
+		}
+		else{
+			to_cover = cur_path;
+		}
+		chosen = cur_path;
+
+		// initialize randomness source
 		buffer = new unsigned char [MAX_RAND_SIZE];
 		int rand_fd = open("/dev/urandom", O_RDONLY);
 		ssize_t r = read(rand_fd, buffer, MAX_RAND_SIZE);
@@ -1284,17 +1336,24 @@ int k_path_gen(int argc, char **argv){
 			printf("Read only %ld bytes from /dev/urandom\n", r);
 		close(rand_fd);
 		unsigned char * idk = NULL;
+
+		// variables for iteration
 		position = 0;
 		unsigned int result = 0;
-		int last_non_zero = 0;
-		while(true){
+		tries = 0;
+		while(tries < 5){
+			int last_non_zero = 0;
 			int pos_val = 0;
-			while(pos_val < 256){
+			while(pos_val < 30){
 				//Change the value of the current byte in the randomness source
-				buffer[position] = pos_val;
+				auto temp = rand() % 256;
+				buffer[position] = temp;
+				previous_gen_pos = 1;
+				k_path_stack = {-1};
 				result = afl_pre_save_handler(buffer, MAX_RAND_SIZE, &idk);
 				if (result != 0){
-					last_non_zero = pos_val;
+					last_non_zero = temp;
+					std::cout << "We were here" << found_path << "\n";
 					if (found_path){
 						break;
 					}
@@ -1305,27 +1364,29 @@ int k_path_gen(int argc, char **argv){
 				if (pos_val == 255 && result == 0){
 					buffer[position] = last_non_zero;
 				}
-				printf("Pos: %u, CVal: %d, Len: %u \n", position, pos_val, result);
 				pos_val++;
 			}
 			if (found_path){
 				break;
 			}
 			position++;
+			tries++;
 		}
 		//Generate the actual input here
-
 		std::cout << "K path before size:" << k_paths.size() << "\n";
-		for (std::vector<std::vector<std::pair<std::string, int>>>::iterator it = found_paths.begin(); it != found_paths.end(); ++it){
-			std::vector<std::pair<std::string, int>> current = *it;
-			k_paths.erase(std::remove(k_paths.begin(), k_paths.end(), *it), k_paths.end());
+		if (found_paths.size() != 0) {
+			for (auto it = found_paths.begin(); it != found_paths.end(); ++it){
+				auto current = *it;
+				k_paths.erase(std::remove(k_paths.begin(), k_paths.end(), *it), k_paths.end());
+				std::string f = "Input"+std::to_string(generated_inputs)+".txt";
+				const char* file_name = f.c_str();
+				write_file(file_name, idk, result);
+			}
+			generated_inputs++;
 		}
 		std::cout << "Found path size:" << found_paths.size() << "\n";
 		std::cout << "K path after size:" << k_paths.size() << "\n";
 		found_paths.clear();
-		if(k_paths.size() == 0){
-			break;
-		}
 	}
 	return 0;
 }
@@ -1337,18 +1398,18 @@ int test_k_paths(int argc, char **argv){
 	}
 	char *str = argv[1];
 	char *pEnd;
-	long int k = strtol(str, &pEnd, 10);
+	int k = strtol(str, &pEnd, 10);
 	if (*pEnd != 0){
 		printf("Wrong type of argument \n");
 		return 1;
 	}
-	std::list<std::vector<std::pair<std::string, int >>> k_paths = get_kPaths(k, get_reachabilities());
-	for (std::list<std::vector<std::pair<std::string, int>>>::iterator it = k_paths.begin(); it != k_paths.end(); ++it){
-		std::vector<std::pair<std::string, int>> k_path = *it;
+	auto k_paths = get_kPaths(k, get_reachabilities());
+	for (auto it = k_paths.begin(); it != k_paths.end(); ++it){
+		auto k_path = *it;
 		printf("Start: ");
-		for (std::vector<std::pair<std::string, int>>::iterator i = k_path.begin(); i != k_path.end(); ++i){
-			std::pair<std::string, int> part = *i;
-			std::cout << " -> (" << part.first << "," << part.second << ")";
+		for (auto i = k_path.begin(); i != k_path.end(); ++i){
+			auto part = *i;
+			std::cout << " -> (" << part << ")";
 		}
 		printf(" :, End\n");
 	}

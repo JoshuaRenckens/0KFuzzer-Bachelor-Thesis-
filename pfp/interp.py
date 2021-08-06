@@ -632,77 +632,171 @@ class Scope(object):
 reachability_list = []
 terminals_list = []
 non_terminals_list = []
+elements = []
 type_dict = {}
-final_reachability_dict = {}
+temp_dict = {}
+inv_type = {}
 
-def record_non_terminal(classname,  name, decl):
-    line_no = decl.coord.line
-    if (decl.type.cpp not in type_dict.keys()):
-        type_dict[decl.type.cpp] = [(name, line_no)]
-    elif ((name, line_no) not in type_dict[decl.type.cpp]):
-        type_dict[decl.type.cpp].append((name, line_no))
-    if ((classname, (name, line_no)) not in reachability_list):
-        reachability_list.append((classname, (name, line_no)))
-    if ((name, line_no) not in non_terminals_list):
-        non_terminals_list.append((name, line_no))
+def record_temp(type, index):
+    if index not in temp_dict.keys():
+        temp_dict[index] = type
+    if index not in elements:
+        elements.append(index)
 
-def record_terminal(classname, name, line_no):
-    if ((classname, (name, line_no)) not in reachability_list):
-        reachability_list.append((classname, (name, line_no)))
-    if ((name, line_no) not in terminals_list):
-        terminals_list.append((name, line_no))
+def record(classname, decl, index):
+    if index == 41 or index == 116 or index == 117:
+        print("record: " +str(index)+ " ,Type: "+ decl.type.cpp)
+    if decl.type.cpp not in type_dict.keys():
+        type_dict[decl.type.cpp] = [index]
+    elif index not in type_dict[decl.type.cpp]:
+        type_dict[decl.type.cpp].append(index)
+    if (classname, index) not in reachability_list:
+        reachability_list.append((classname, index))
+    if index not in elements:
+        elements.append(index)
+
+def create_path_dict(path_dict, current, previous, rev_graph):
+    if current not in path_dict.keys():
+        path_dict[current] = [(current, 0)]
+        if previous != None:
+            for values in path_dict[previous]:
+                temp2 = path_dict[current]
+                temp2.append((values[0], values[1]+1))
+                path_dict[current] = temp2
+    else:
+        if previous != None:
+            for values in path_dict[previous]:
+                temp = (values[0], values[1]+1)
+                inside = False
+                for val in path_dict[current]:
+                    if val[0] == temp[0]:
+                        inside = True
+                        if temp[1] < val[1]:
+                            vals = path_dict[current]
+                            vals.remove(val)
+                            vals.append((temp))
+                            path_dict[current] = vals
+                        break
+                if not inside:
+                    if temp not in path_dict[current]:
+                        temp2 = path_dict[current]
+                        temp2.append((values[0], values[1]+1))
+                        path_dict[current] = temp2
+
+    for next in rev_graph[current]:
+        if next == (-1):
+            break
+        if all(next != found[0] for found in path_dict[current]):
+            path_dict = create_path_dict(path_dict, next, current, rev_graph)
+    return path_dict
 
 def final_touch():
+    final_reachability_dict = {}
+    path_dict = {}
 
-    for i in reachability_list:
-        if i[0] in final_reachability_dict.keys():
-            if i[1] not in final_reachability_dict[i[0]]:
-                final_reachability_dict[i[0]].append(i[1])
-        else:
-            final_reachability_dict[i[0]] = [i[1]]
+    #overwrite struct types
+    for element in reachability_list:
+        if element[1] in temp_dict.keys():
+            element = (temp_dict[element[1]], element[1])
+
+    to_change = []
     for key in type_dict.keys():
-        values = final_reachability_dict[key]
-        for value in type_dict[key]:
-            final_reachability_dict[value] = values
-        del final_reachability_dict[key]
-    if "file" in final_reachability_dict.keys():
-        final_reachability_dict[("file", -1)] = final_reachability_dict.pop("file")
+        for element in type_dict[key]:
+            if element in temp_dict.keys():
+                to_change.append((temp_dict[element], key))
+                break
+    
+    for element in to_change:
+        type_dict[element[0]] = type_dict[element[1]]
+        del type_dict[element[1]]
 
+    #create the reachability graph
+    for element in reachability_list:
+        if element[0] in final_reachability_dict.keys():
+            if element[1] not in final_reachability_dict[element[0]]:
+                final_reachability_dict[element[0]].append(element[1])
+        else:
+            final_reachability_dict[element[0]] = [element[1]]
+
+
+    #change the collected types with all of their possible IDs
+    for key in type_dict.keys():
+        if key in final_reachability_dict.keys():
+            values = final_reachability_dict[key]
+            for value in type_dict[key]:
+                final_reachability_dict[value] = values
+            del final_reachability_dict[key]
+    if "file" in final_reachability_dict.keys():
+        final_reachability_dict[-1] = final_reachability_dict.pop("file")
+    
+    non_terminals_list = final_reachability_dict.keys()
+    terminals_list = elements - non_terminals_list
+
+    #create dictionary to use when trying to find the shortest way to a given element
+    reverse_graph = {}
+    for key in final_reachability_dict.keys():
+        for value in final_reachability_dict[key]:
+            if value not in reverse_graph.keys():
+                reverse_graph[value] = [key]
+            elif key not in reverse_graph[value]:
+                reverse_graph[value].append(key)
+
+    #invert type dict to check which type a certain ID has
+    #inv_type = {v: k for k, v in type_dict.items()}
+
+    for element in terminals_list:
+        path_dict = create_path_dict(path_dict, element, None, reverse_graph)
+
+    #create the cpp file used to take the information out of later
     f = open("kPathParens.cpp", "w")
     f.write("#include <map> \n#include <vector> \n#include <list> \n\n")
-    f.write("std::map<std::pair<std::string, int>, std::vector<std::pair<std::string, int>>> get_reachabilities(){ \n    std::map<std::pair<std::string, int>, std::vector<std::pair<std::string, int>>> reach;\n")
+    f.write("std::map<int, std::vector<int>> get_reachabilities(){ \n    std::map<int, std::vector<int>> reach;\n")
     parent_number = 0
     for key in final_reachability_dict.keys():
-        f.write("    std::vector<std::pair<std::string,int>> vect"+str(parent_number)+"{")
+        f.write('    reach['+ str(key) +'] = std::vector<int>({')
         temp = 0
         for val in final_reachability_dict[key]:
             if temp == 0:
-                f.write('std::make_pair(std::string("'+val[0]+'"),'+str(val[1])+")")
+                f.write(str(val))
                 temp += 1
             else:
-                f.write(', std::make_pair(std::string("'+val[0]+'"),'+str(val[1])+")")
-        f.write("};\n")
-        f.write('    reach[std::make_pair(std::string("' + key[0] + '"),'+ str(key[1]) +')] = vect'+str(parent_number)+';\n')
+                f.write(', '+str(val))
+        f.write("});\n")
         parent_number += 1
     f.write("    return reach;\n}\n")
 
-    f.write("std::list<std::pair<std::string, int>> get_terminals(){ \n    std::list<std::pair<std::string, int>> terminals({")
+    f.write("std::map<int, std::vector<std::pair<int, int>>> get_paths(){ \n    std::map<int, std::vector<std::pair<int, int>>> paths;\n")
+    parent_number = 0
+    for key in path_dict.keys():
+        f.write('    paths['+ str(key) +'] = std::vector<std::pair<int,int>>({')
+        temp = 0
+        for val in path_dict[key]:
+            if temp == 0:
+                f.write('std::make_pair('+str(val[1])+','+str(val[0])+")")
+                temp += 1
+            else:
+                f.write(', std::make_pair('+str(val[1])+','+str(val[0])+")")
+        f.write("});\n")
+        parent_number += 1
+    f.write("    return paths;\n}\n")
+
+    f.write("std::list<int> get_terminals(){ \n    std::list<int> terminals({")
     count = 0
     for terminal in terminals_list:
         if count == 0:
-            f.write('std::make_pair(std::string("'+terminal[0]+'"),'+str(terminal[1])+')')
+            f.write(str(terminal))
         else:
-            f.write(', std::make_pair(std::string("'+terminal[0]+'"),'+str(terminal[1])+')')
+            f.write(','+str(terminal))
         count += 1
     f.write("});\n    return terminals;\n}\n")
 
-    f.write("std::list<std::pair<std::string, int>> get_non_terminals(){ \n    std::list<std::pair<std::string, int>> non_terminals({")
+    f.write("std::list<int> get_non_terminals(){ \n    std::list<int> non_terminals({")
     count = 0
     for non_terminal in non_terminals_list:
         if count == 0:
-            f.write('std::make_pair(std::string("'+non_terminal[0]+'"),'+str(non_terminal[1])+')')
+            f.write(str(non_terminal))
         else:
-            f.write(', std::make_pair(std::string("'+non_terminal[0]+'"),'+str(non_terminal[1])+')')
+            f.write(','+str(non_terminal))
         count += 1
     f.write("});\n    return non_terminals;\n}\n")
     f.close
@@ -736,6 +830,8 @@ class PfpInterp(object):
     _to_replace = []
     _is_substructunion = False
     _call_stack = []
+    _indexes = {}
+    _ID = 0
 
 
     def add_decl(self, classname, classnode, node, is_union):
@@ -750,11 +846,11 @@ class PfpInterp(object):
             node.cpp = "GENERATE"
             if len(self._incomplete_stack) > 1:
                 node.cpp += "_VAR"
-            else:
-                record_non_terminal('file', node.name, node)
+            if node.type not in self._indexes.keys():
+                self._indexes[node.type] = self._ID
+                self._ID += 1
             self._variable_types[node.name] = classname
-            print("GENERATE" + node.name + ", Line:" + str(node.coord.line))
-            node.cpp += "(" + str(node.coord.line) + ", " + name + ", ::g->" + node.name + ".generate("
+            node.cpp += "(" + name + ", " + str(self._indexes[node.type]) + ", ::g->" + node.name + ".generate("
             arg_num = 0
             if hasattr(node.type, "args") and node.type.args:
                 for arg in node.type.args.exprs:
@@ -912,6 +1008,7 @@ class PfpInterp(object):
             decls += self.get_decls(node)
         variables = []
         defined = set()
+        repeated_variables = []
         for decl in decls:
             if "const" in decl.quals:
                 continue
@@ -923,6 +1020,10 @@ class PfpInterp(object):
             else:
                 self._struct_vars.append(name)
             if "local" not in decl.quals:
+                if decl.type not in self._indexes.keys():
+                    self._indexes[decl.type] = self._ID
+                    self._ID += 1
+                record(classname, decl, self._indexes[decl.type])
                 if name in defined:
                     sametype = True
                     for n,d in variables:
@@ -945,21 +1046,15 @@ class PfpInterp(object):
         for name, decl in variables:
             if hasattr(decl, "is_structunion"):
                 cpp += "\t" + decl.type.cpp + "* " + name + "_var;\n"
-                print("1. Name: "+ name+ ", Line: "+str(decl.coord.line))
-                record_non_terminal(classname, name, decl)
             elif False and is_union and decl.type.cpp == "std::string" and decl.type.__class__ == AST.ArrayDecl:
                 cpp += "\t" + " ".join(decl.type.type.type.names) + " " + name + "_var[" + decl.type.dim.cpp + "];\n"
             elif decl.bitsize is not None:
-                print("2. Name: "+ name+ ", Line: "+str(decl.coord.line))
-                record_terminal(classname,  name, decl.coord.line)
                 if "/**/" in decl.bitsize.cpp:
                     cpp += "\t" + decl.type.cpp + " " + name + "_var;  //  : " + decl.bitsize.cpp.replace("/**/", "") + ";\n"
                 else:
                     cpp += "\t" + decl.type.cpp + " " + name + "_var : " + decl.bitsize.cpp + ";\n"
             else:
                 cpp += "\t" + decl.type.cpp + " " + name + "_var;\n"
-                print("3. Name: "+ name+ ", Line: "+str(decl.coord.line))
-                record_terminal(classname, name, decl.coord.line)
         if is_union:
             cpp += "// };\n"
         cpp += "\npublic:\n"
@@ -1049,14 +1144,15 @@ class PfpInterp(object):
                 if hasattr(node, "originalname"):
                     name = node.originalname
                 node.cpp = "GENERATE"
+                if node.type not in self._indexes.keys():
+                    self._indexes[node.type] = self._ID
+                    self._ID += 1
                 if is_var:
                     node.cpp += "_VAR"
                 else:
-                    print("0. Name: "+ node.name + ", Line: "+str(node.coord.line))
-                    record_non_terminal('file', node.name, node)
+                    record('file', node, self._indexes[node.type])
                 self._variable_types[field_name] = classname
-                print("GENERATE: " + node.name + ", Line:" + str(node.coord.line))
-                node.cpp += "(" + str(node.coord.line) + ", " + name + ", ::g->" + field_name + ".generate("
+                node.cpp += "(" + name + ", " + str(self._indexes[node.type]) + ", ::g->" + field_name + ".generate("
                 arg_num = 0
                 todofield = "/*TODO field " + field_name + "("
                 if hasattr(node.type, "args") and node.type.args:
@@ -1359,7 +1455,6 @@ class PfpInterp(object):
 
         res = self._run(keep_successful)
         res._pfp__finalize()
-        final_touch()
         return res
 
     def step_over(self):
@@ -2301,8 +2396,11 @@ class PfpInterp(object):
                 if len(self._incomplete_stack) > 1:
                     node.cpp += "_VAR"
                 self._variable_types[node.name] = classname.replace(" ", "_") + "_array_class"
-                print("GENERATE: " + node.name + ", Line:" + str(node.coord.line))
-                node.cpp += "(" + str(node.coord.line) + ", "  + node.originalname + ", ::g->" + node.name + ".generate("
+                if node.type not in self._indexes.keys():
+                    self._indexes[node.type] = self._ID
+                    self._ID += 1
+                record_temp(classname, self._indexes[node.type])
+                node.cpp += "(" + node.originalname + ", "  + str(self._indexes[node.type]) + ", ::g->" + node.name + ".generate("
                 if node.type.dim is not None:
                     node.cpp += node.type.dim.cpp
                 if node.init is not None:
@@ -2323,8 +2421,10 @@ class PfpInterp(object):
                 if len(self._incomplete_stack) > 1:
                     node.cpp += "_VAR"
                 self._variable_types[node.name] = classname
-                print("GENERATE: " + node.name + ", Line:" + str(node.coord.line))
-                node.cpp += "(" + str(node.coord.line) + ", "  + node.name + ", " + classname + "_generate("
+                if node.type not in self._indexes.keys():
+                    self._indexes[node.type] = self._ID
+                    self._ID += 1
+                node.cpp += "(" + node.name + ", "  + str(self._indexes[node.type]) + ", " + classname + "_generate("
                 if node.init is not None:
                     self._handle_node(node.init, scope, ctxt, stream)
                     node.cpp += "{ "
@@ -2428,8 +2528,10 @@ class PfpInterp(object):
                     if len(self._incomplete_stack) > 1:
                         node.cpp += "_VAR"
                     self._variable_types[node.name] = classnamebits
-                    print("GENERATE: " + node.name + ", Line:" + str(node.coord.line))
-                    node.cpp += "(" + str(node.coord.line) + ", "  + node.originalname + ", ::g->" + node.name + ".generate("
+                    if node.type not in self._indexes.keys():
+                        self._indexes[node.type] = self._ID
+                        self._ID += 1
+                    node.cpp += "(" + node.originalname + ", "  + str(self._indexes[node.type]) + ", ::g->" + node.name + ".generate("
                     if is_bitfield:
                         node.cpp += node.bitsize.cpp
                     if node.init is not None:
@@ -2451,8 +2553,10 @@ class PfpInterp(object):
                     if len(self._incomplete_stack) > 1:
                         node.cpp += "_VAR"
                     self._variable_types[node.name] = classname
-                    print("GENERATE: " + node.name + ", Line:" + str(node.coord.line))
-                    node.cpp += "(" + str(node.coord.line) + ", "  + node.name + ", " + classname + "_generate("
+                    if node.type not in self._indexes.keys():
+                        self._indexes[node.type] = self._ID
+                        self._ID += 1
+                    node.cpp += "(" + node.name + ", "  + str(self._indexes[node.type]) + ", " + classname + "_generate("
                     if node.init is not None:
                         self._handle_node(node.init, scope, ctxt, stream)
                         node.cpp += "{ "

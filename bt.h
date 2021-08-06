@@ -112,20 +112,20 @@ const int TRUE = 1;
 const int False = 0;
 const int FALSE = 0;
 
-#define GENERATE_VAR(line_no, name, value) do { \
-	start_generation(#name, line_no);       \
+#define GENERATE_VAR(name, index, value) do { \
+	start_generation(#name, index);       \
 	name ## _var = (value);        \
 	name ## _exists = true;        \
 	end_generation();              \
 	} while (0)
 
-#define GENERATE(line_no, name, value) do {     \
-	start_generation(#name, line_no);       \
+#define GENERATE(name, index, value) do {     \
+	start_generation(#name, index);       \
 	(value);                       \
 	end_generation();              \
 	} while (0)
 
-#define GENERATE_EXISTS(line_no, name, value)   \
+#define GENERATE_EXISTS(name, index, value)   \
 	name ## _exists = true
 
 
@@ -157,41 +157,61 @@ extern bool is_big_endian;
 extern bool is_padded_bitfield;
 void generate_file();
 
-std::vector<std::vector<std::pair<std::string, int>>> found_paths;
-std::vector<std::pair<std::string, int>> k_path_stack{std::make_pair("file", -1)};
-extern int position;
+std::vector<std::vector<int>> found_paths;
+extern std::vector<int> k_path_stack;
+extern unsigned int position;
 extern bool found_path;
-extern std::vector<std::pair<std::string, int>> cur_path;
+extern std::vector<int> to_cover;
+extern std::vector<int> chosen;
 extern int path_pos;
-long unsigned int k = 0;
 bool k_paths = false;
+extern unsigned int previous_gen_pos;
+extern int tries;
 
 
-void start_generation(const char* name, unsigned line_no) {
+void start_generation(const char* name, unsigned index) {
 	if (k_paths){
-		k_path_stack.emplace_back(std::make_pair(name, line_no));
-		std::cout << "Stack size "<< k_path_stack.size() << " Found paths size: " << found_paths.size() << "\n";
-		if (k == 0)
-			k = cur_path.size();
-		std::vector<std::pair<std::string, int>> temp_path;
-		if (k_path_stack.size() > k){
+		bool on_path;
+		unsigned int k = chosen.size();
+		k_path_stack.emplace_back(index);
+		if (!found_path){
+			on_path = false;
+			if (previous_gen_pos+1 == k_path_stack.size()){
+				if (k_path_stack[k_path_stack.size()-1] == to_cover[k_path_stack.size()-1]){
+					previous_gen_pos++;
+					if (file_acc.rand_pos > position){
+						position = file_acc.rand_prev;
+						tries = 0;
+					}
+					on_path = true;
+				}
+				if(previous_gen_pos == to_cover.size()){
+					found_path = true;
+					on_path = true;
+				}
+			}
+			if(!on_path){
+				if (k_path_stack.size() <= previous_gen_pos){
+					std::cout << "K-path abortion , Current Position: " << position << " Current rand_pos " << file_acc.rand_pos << "\n";
+					throw "K-path abortion" ;
+				}
+			}
+		}
+		std::vector<int> temp_path;
+		if (k_path_stack.size() >= k){
 			long unsigned int i = k_path_stack.size()-k;
 			while (i < k_path_stack.size()){
 				temp_path.emplace_back(k_path_stack[i]);
 				i++;
 			}
 		}
-		std::cout << "temp path size: " << temp_path.size() << "\n";
-		if (!found_path){
-			if (cur_path == temp_path)
-				found_path = true;
-		}
-		if (std::find(found_paths.begin(), found_paths.end(), temp_path) == found_paths.end() && temp_path.size() == k)
+		if (std::find(found_paths.begin(), found_paths.end(), temp_path) == found_paths.end())
 			found_paths.emplace_back(temp_path);
+		std::cout << "Current ID: " << index << " Found paths: "<< found_paths.size() << " Stack size: " << k_path_stack.size() << " Found path: " << found_path <<  " Prev Gen Pos: " << previous_gen_pos << " Current Position: " << position << "\n";
 	}
 	if (!get_parse_tree)
 		return;
-	generator_stack.emplace_back(name, file_acc.rand_prev, file_acc.rand_pos, line_no);
+	generator_stack.emplace_back(name, file_acc.rand_prev, file_acc.rand_pos, index);
 	file_acc.rand_prev = file_acc.rand_pos;
 	file_acc.rand_last = UINT_MAX;
 }

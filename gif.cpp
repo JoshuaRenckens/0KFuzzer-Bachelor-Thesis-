@@ -4,6 +4,7 @@
 #include <vector>
 #include <unordered_map>
 #include "bt.h"
+#include "kPathParens.cpp"
 
 
 class char_class {
@@ -1547,9 +1548,9 @@ GIFHEADER* GIFHEADER::generate() {
 	_startof = FTell();
 
 	evil = SetEvilBit(false);
-	GENERATE_VAR(Signature, ::g->Signature.generate(3));
+	GENERATE_VAR(Signature, 0, ::g->Signature.generate(3));
 	SetEvilBit(evil);
-	GENERATE_VAR(Version, ::g->Version.generate(3, { {"87a"}, {"89a"} }));
+	GENERATE_VAR(Version, 1, ::g->Version.generate(3, { {"87a"}, {"89a"} }));
 
 	_sizeof = FTell() - _startof;
 	return this;
@@ -1566,10 +1567,10 @@ LOGICALSCREENDESCRIPTOR_PACKEDFIELDS* LOGICALSCREENDESCRIPTOR_PACKEDFIELDS::gene
 		generated = 1;
 	_startof = FTell();
 
-	GENERATE_VAR(GlobalColorTableFlag, ::g->GlobalColorTableFlag.generate(1));
-	GENERATE_VAR(ColorResolution, ::g->ColorResolution.generate(3));
-	GENERATE_VAR(SortFlag, ::g->SortFlag.generate(1));
-	GENERATE_VAR(SizeOfGlobalColorTable, ::g->SizeOfGlobalColorTable.generate(3));
+	GENERATE_VAR(GlobalColorTableFlag, 5, ::g->GlobalColorTableFlag.generate(1));
+	GENERATE_VAR(ColorResolution, 6, ::g->ColorResolution.generate(3));
+	GENERATE_VAR(SortFlag, 7, ::g->SortFlag.generate(1));
+	GENERATE_VAR(SizeOfGlobalColorTable, 8, ::g->SizeOfGlobalColorTable.generate(3));
 
 	_sizeof = FTell() - _startof;
 	return this;
@@ -1586,15 +1587,15 @@ LOGICALSCREENDESCRIPTOR* LOGICALSCREENDESCRIPTOR::generate() {
 		generated = 1;
 	_startof = FTell();
 
-	GENERATE_VAR(Width, ::g->Width.generate());
-	GENERATE_VAR(Height, ::g->Height.generate());
+	GENERATE_VAR(Width, 3, ::g->Width.generate());
+	GENERATE_VAR(Height, 4, ::g->Height.generate());
 	BitfieldLeftToRight();
-	GENERATE_VAR(PackedFields, ::g->PackedFields.generate());
-	GENERATE_VAR(BackgroundColorIndex, ::g->BackgroundColorIndex.generate());
+	GENERATE_VAR(PackedFields, 9, ::g->PackedFields.generate());
+	GENERATE_VAR(BackgroundColorIndex, 10, ::g->BackgroundColorIndex.generate());
 	if ((::g->GifHeader().Version() == "89a")) {
-		GENERATE_VAR(PixelAspectRatio, ::g->PixelAspectRatio.generate());
+		GENERATE_VAR(PixelAspectRatio, 11, ::g->PixelAspectRatio.generate());
 	} else {
-		GENERATE_VAR(PixelAspectRatio, ::g->PixelAspectRatio.generate({ 0 }));
+		GENERATE_VAR(PixelAspectRatio, 12, ::g->PixelAspectRatio.generate({ 0 }));
 	};
 
 	_sizeof = FTell() - _startof;
@@ -1612,9 +1613,9 @@ RGB* RGB::generate() {
 		generated = 1;
 	_startof = FTell();
 
-	GENERATE_VAR(R, ::g->R.generate());
-	GENERATE_VAR(G, ::g->G.generate());
-	GENERATE_VAR(B, ::g->B.generate());
+	GENERATE_VAR(R, 14, ::g->R.generate());
+	GENERATE_VAR(G, 15, ::g->G.generate());
+	GENERATE_VAR(B, 16, ::g->B.generate());
 
 	_sizeof = FTell() - _startof;
 	return this;
@@ -1636,7 +1637,7 @@ GLOBALCOLORTABLE* GLOBALCOLORTABLE::generate() {
 			size *= 2;
 	;
 	};
-	GENERATE_VAR(rgb, ::g->rgb.generate(size));
+	GENERATE_VAR(rgb, 17, ::g->rgb.generate(size));
 
 	_sizeof = FTell() - _startof;
 	return this;
@@ -1658,11 +1659,11 @@ IMAGEDESCRIPTOR_PACKEDFIELDS* IMAGEDESCRIPTOR_PACKEDFIELDS::generate() {
 	} else {
 		possible_values = { 1 };
 	};
-	GENERATE_VAR(LocalColorTableFlag, ::g->LocalColorTableFlag.generate(1, possible_values));
-	GENERATE_VAR(InterlaceFlag, ::g->InterlaceFlag.generate(1));
-	GENERATE_VAR(SortFlag, ::g->SortFlag.generate(1));
-	GENERATE_VAR(Reserved, ::g->Reserved.generate(2));
-	GENERATE_VAR(SizeOfLocalColorTable, ::g->SizeOfLocalColorTable.generate(3));
+	GENERATE_VAR(LocalColorTableFlag, 24, ::g->LocalColorTableFlag.generate(1, possible_values));
+	GENERATE_VAR(InterlaceFlag, 25, ::g->InterlaceFlag.generate(1));
+	GENERATE_VAR(SortFlag, 26, ::g->SortFlag.generate(1));
+	GENERATE_VAR(Reserved, 27, ::g->Reserved.generate(2));
+	GENERATE_VAR(SizeOfLocalColorTable, 28, ::g->SizeOfLocalColorTable.generate(3));
 
 	_sizeof = FTell() - _startof;
 	return this;
@@ -1679,12 +1680,12 @@ IMAGEDESCRIPTOR* IMAGEDESCRIPTOR::generate() {
 		generated = 1;
 	_startof = FTell();
 
-	GENERATE_VAR(ImageSeperator, ::g->ImageSeperator.generate());
-	GENERATE_VAR(ImageLeftPosition, ::g->ImageLeftPosition.generate());
-	GENERATE_VAR(ImageTopPosition, ::g->ImageTopPosition.generate());
-	GENERATE_VAR(ImageWidth, ::g->ImageWidth.generate());
-	GENERATE_VAR(ImageHeight, ::g->ImageHeight.generate());
-	GENERATE_VAR(PackedFields, ::g->PackedFields_.generate());
+	GENERATE_VAR(ImageSeperator, 19, ::g->ImageSeperator.generate());
+	GENERATE_VAR(ImageLeftPosition, 20, ::g->ImageLeftPosition.generate());
+	GENERATE_VAR(ImageTopPosition, 21, ::g->ImageTopPosition.generate());
+	GENERATE_VAR(ImageWidth, 22, ::g->ImageWidth.generate());
+	GENERATE_VAR(ImageHeight, 23, ::g->ImageHeight.generate());
+	GENERATE_VAR(PackedFields, 29, ::g->PackedFields_.generate());
 
 	_sizeof = FTell() - _startof;
 	return this;
@@ -1706,7 +1707,7 @@ LOCALCOLORTABLE* LOCALCOLORTABLE::generate() {
 			size *= 2;
 	;
 	};
-	GENERATE_VAR(rgb, ::g->rgb.generate(size));
+	GENERATE_VAR(rgb, 31, ::g->rgb.generate(size));
 
 	_sizeof = FTell() - _startof;
 	return this;
@@ -1723,8 +1724,8 @@ DATASUBBLOCK* DATASUBBLOCK::generate(UBYTE& size) {
 		generated = 1;
 	_startof = FTell();
 
-	GENERATE_VAR(Size, ::g->Size.generate());
-	GENERATE_VAR(Data, ::g->Data.generate(size));
+	GENERATE_VAR(Size, 34, ::g->Size.generate());
+	GENERATE_VAR(Data, 35, ::g->Data.generate(size));
 
 	_sizeof = FTell() - _startof;
 	return this;
@@ -1748,14 +1749,14 @@ DATASUBBLOCKS* DATASUBBLOCKS::generate() {
 	count = 0;
 	size = ReadUByte(FTell(), values);
 	while ((size != 0)) {
-		GENERATE_VAR(DataSubBlock, ::g->DataSubBlock.generate(size));
+		GENERATE_VAR(DataSubBlock, 36, ::g->DataSubBlock.generate(size));
 		count += size;
 		size = ReadUByte(FTell(), values);
 		if ((count > 1500)) {
 			values = { 0, 255 };
 		};
 	};
-	GENERATE_VAR(BlockTerminator, ::g->BlockTerminator.generate());
+	GENERATE_VAR(BlockTerminator, 37, ::g->BlockTerminator.generate());
 
 	_sizeof = FTell() - _startof;
 	return this;
@@ -1772,8 +1773,8 @@ IMAGEDATA* IMAGEDATA::generate() {
 		generated = 1;
 	_startof = FTell();
 
-	GENERATE_VAR(LZWMinimumCodeSize, ::g->LZWMinimumCodeSize.generate({ 8 }));
-	GENERATE_VAR(DataSubBlocks, ::g->DataSubBlocks.generate());
+	GENERATE_VAR(LZWMinimumCodeSize, 33, ::g->LZWMinimumCodeSize.generate({ 8 }));
+	GENERATE_VAR(DataSubBlocks, 38, ::g->DataSubBlocks.generate());
 
 	_sizeof = FTell() - _startof;
 	return this;
@@ -1790,10 +1791,10 @@ GRAPHICCONTROLEXTENSION_DATASUBBLOCK_PACKEDFIELDS* GRAPHICCONTROLEXTENSION_DATAS
 		generated = 1;
 	_startof = FTell();
 
-	GENERATE_VAR(Reserved, ::g->Reserved_.generate(3));
-	GENERATE_VAR(DisposalMethod, ::g->DisposalMethod.generate(3));
-	GENERATE_VAR(UserInputFlag, ::g->UserInputFlag.generate(1));
-	GENERATE_VAR(TransparentColorFlag, ::g->TransparentColorFlag.generate(1));
+	GENERATE_VAR(Reserved, 43, ::g->Reserved_.generate(3));
+	GENERATE_VAR(DisposalMethod, 44, ::g->DisposalMethod.generate(3));
+	GENERATE_VAR(UserInputFlag, 45, ::g->UserInputFlag.generate(1));
+	GENERATE_VAR(TransparentColorFlag, 46, ::g->TransparentColorFlag.generate(1));
 
 	_sizeof = FTell() - _startof;
 	return this;
@@ -1810,10 +1811,10 @@ GRAPHICCONTROLSUBBLOCK* GRAPHICCONTROLSUBBLOCK::generate() {
 		generated = 1;
 	_startof = FTell();
 
-	GENERATE_VAR(BlockSize, ::g->BlockSize.generate());
-	GENERATE_VAR(PackedFields, ::g->PackedFields__.generate());
-	GENERATE_VAR(DelayTime, ::g->DelayTime.generate());
-	GENERATE_VAR(TransparentColorIndex, ::g->TransparentColorIndex.generate());
+	GENERATE_VAR(BlockSize, 42, ::g->BlockSize.generate());
+	GENERATE_VAR(PackedFields, 47, ::g->PackedFields__.generate());
+	GENERATE_VAR(DelayTime, 48, ::g->DelayTime.generate());
+	GENERATE_VAR(TransparentColorIndex, 49, ::g->TransparentColorIndex.generate());
 
 	_sizeof = FTell() - _startof;
 	return this;
@@ -1830,10 +1831,10 @@ GRAPHICCONTROLEXTENSION* GRAPHICCONTROLEXTENSION::generate() {
 		generated = 1;
 	_startof = FTell();
 
-	GENERATE_VAR(ExtensionIntroducer, ::g->ExtensionIntroducer.generate());
-	GENERATE_VAR(GraphicControlLabel, ::g->GraphicControlLabel.generate());
-	GENERATE_VAR(GraphicControlSubBlock, ::g->GraphicControlSubBlock.generate());
-	GENERATE_VAR(BlockTerminator, ::g->BlockTerminator.generate());
+	GENERATE_VAR(ExtensionIntroducer, 40, ::g->ExtensionIntroducer.generate());
+	GENERATE_VAR(GraphicControlLabel, 41, ::g->GraphicControlLabel.generate());
+	GENERATE_VAR(GraphicControlSubBlock, 50, ::g->GraphicControlSubBlock.generate());
+	GENERATE_VAR(BlockTerminator, 51, ::g->BlockTerminator.generate());
 
 	_sizeof = FTell() - _startof;
 	return this;
@@ -1850,9 +1851,9 @@ COMMENTEXTENSION* COMMENTEXTENSION::generate() {
 		generated = 1;
 	_startof = FTell();
 
-	GENERATE_VAR(ExtensionIntroducer, ::g->ExtensionIntroducer.generate());
-	GENERATE_VAR(CommentLabel, ::g->CommentLabel.generate());
-	GENERATE_VAR(CommentData, ::g->CommentData.generate());
+	GENERATE_VAR(ExtensionIntroducer, 53, ::g->ExtensionIntroducer.generate());
+	GENERATE_VAR(CommentLabel, 54, ::g->CommentLabel.generate());
+	GENERATE_VAR(CommentData, 55, ::g->CommentData.generate());
 
 	_sizeof = FTell() - _startof;
 	return this;
@@ -1869,15 +1870,15 @@ PLAINTEXTSUBBLOCK* PLAINTEXTSUBBLOCK::generate() {
 		generated = 1;
 	_startof = FTell();
 
-	GENERATE_VAR(BlockSize, ::g->BlockSize.generate());
-	GENERATE_VAR(TextGridLeftPosition, ::g->TextGridLeftPosition.generate());
-	GENERATE_VAR(TextGridTopPosition, ::g->TextGridTopPosition.generate());
-	GENERATE_VAR(TextGridWidth, ::g->TextGridWidth.generate());
-	GENERATE_VAR(TextGridHeight, ::g->TextGridHeight.generate());
-	GENERATE_VAR(CharacterCellWidth, ::g->CharacterCellWidth.generate());
-	GENERATE_VAR(CharacterCellHeight, ::g->CharacterCellHeight.generate());
-	GENERATE_VAR(TextForegroundColorIndex, ::g->TextForegroundColorIndex.generate());
-	GENERATE_VAR(TextBackgroundColorIndex, ::g->TextBackgroundColorIndex.generate());
+	GENERATE_VAR(BlockSize, 59, ::g->BlockSize.generate());
+	GENERATE_VAR(TextGridLeftPosition, 60, ::g->TextGridLeftPosition.generate());
+	GENERATE_VAR(TextGridTopPosition, 61, ::g->TextGridTopPosition.generate());
+	GENERATE_VAR(TextGridWidth, 62, ::g->TextGridWidth.generate());
+	GENERATE_VAR(TextGridHeight, 63, ::g->TextGridHeight.generate());
+	GENERATE_VAR(CharacterCellWidth, 64, ::g->CharacterCellWidth.generate());
+	GENERATE_VAR(CharacterCellHeight, 65, ::g->CharacterCellHeight.generate());
+	GENERATE_VAR(TextForegroundColorIndex, 66, ::g->TextForegroundColorIndex.generate());
+	GENERATE_VAR(TextBackgroundColorIndex, 67, ::g->TextBackgroundColorIndex.generate());
 
 	_sizeof = FTell() - _startof;
 	return this;
@@ -1894,10 +1895,10 @@ PLAINTEXTEXTENTION* PLAINTEXTEXTENTION::generate() {
 		generated = 1;
 	_startof = FTell();
 
-	GENERATE_VAR(ExtensionIntroducer, ::g->ExtensionIntroducer.generate());
-	GENERATE_VAR(PlainTextLabel, ::g->PlainTextLabel.generate());
-	GENERATE_VAR(PlainTextSubBlock, ::g->PlainTextSubBlock.generate());
-	GENERATE_VAR(PlainTextData, ::g->PlainTextData.generate());
+	GENERATE_VAR(ExtensionIntroducer, 57, ::g->ExtensionIntroducer.generate());
+	GENERATE_VAR(PlainTextLabel, 58, ::g->PlainTextLabel.generate());
+	GENERATE_VAR(PlainTextSubBlock, 68, ::g->PlainTextSubBlock.generate());
+	GENERATE_VAR(PlainTextData, 69, ::g->PlainTextData.generate());
 
 	_sizeof = FTell() - _startof;
 	return this;
@@ -1914,9 +1915,9 @@ APPLICATIONSUBBLOCK* APPLICATIONSUBBLOCK::generate() {
 		generated = 1;
 	_startof = FTell();
 
-	GENERATE_VAR(BlockSize, ::g->BlockSize.generate());
-	GENERATE_VAR(ApplicationIdentifier, ::g->ApplicationIdentifier.generate(8));
-	GENERATE_VAR(ApplicationAuthenticationCode, ::g->ApplicationAuthenticationCode.generate(3));
+	GENERATE_VAR(BlockSize, 73, ::g->BlockSize.generate());
+	GENERATE_VAR(ApplicationIdentifier, 74, ::g->ApplicationIdentifier.generate(8));
+	GENERATE_VAR(ApplicationAuthenticationCode, 75, ::g->ApplicationAuthenticationCode.generate(3));
 
 	_sizeof = FTell() - _startof;
 	return this;
@@ -1933,10 +1934,10 @@ APPLICATIONEXTENTION* APPLICATIONEXTENTION::generate() {
 		generated = 1;
 	_startof = FTell();
 
-	GENERATE_VAR(ExtensionIntroducer, ::g->ExtensionIntroducer.generate());
-	GENERATE_VAR(ApplicationLabel, ::g->ApplicationLabel.generate());
-	GENERATE_VAR(ApplicationSubBlock, ::g->ApplicationSubBlock.generate());
-	GENERATE_VAR(ApplicationData, ::g->ApplicationData.generate());
+	GENERATE_VAR(ExtensionIntroducer, 71, ::g->ExtensionIntroducer.generate());
+	GENERATE_VAR(ApplicationLabel, 72, ::g->ApplicationLabel.generate());
+	GENERATE_VAR(ApplicationSubBlock, 76, ::g->ApplicationSubBlock.generate());
+	GENERATE_VAR(ApplicationData, 77, ::g->ApplicationData.generate());
 
 	_sizeof = FTell() - _startof;
 	return this;
@@ -1953,9 +1954,9 @@ UNDEFINEDDATA* UNDEFINEDDATA::generate() {
 		generated = 1;
 	_startof = FTell();
 
-	GENERATE_VAR(ExtensionIntroducer, ::g->ExtensionIntroducer.generate());
-	GENERATE_VAR(Label, ::g->Label.generate());
-	GENERATE_VAR(DataSubBlocks, ::g->DataSubBlocks.generate());
+	GENERATE_VAR(ExtensionIntroducer, 79, ::g->ExtensionIntroducer.generate());
+	GENERATE_VAR(Label, 80, ::g->Label.generate());
+	GENERATE_VAR(DataSubBlocks, 81, ::g->DataSubBlocks.generate());
 
 	_sizeof = FTell() - _startof;
 	return this;
@@ -1981,32 +1982,32 @@ DATA* DATA::generate() {
 		if ((ReadUByte(FTell()) == 0x2C)) {
 			possible.insert(possible.end(), { 0x3B });
 			SetBackColor(0xE0FFE0);
-			GENERATE_VAR(ImageDescriptor, ::g->ImageDescriptor.generate());
+			GENERATE_VAR(ImageDescriptor, 30, ::g->ImageDescriptor.generate());
 			if ((ImageDescriptor().PackedFields().LocalColorTableFlag() == 1)) {
 				SetBackColor(0xC0FFC0);
-				GENERATE_VAR(LocalColorTable, ::g->LocalColorTable.generate());
+				GENERATE_VAR(LocalColorTable, 32, ::g->LocalColorTable.generate());
 			};
 			SetBackColor(0xA0FFA0);
-			GENERATE_VAR(ImageData, ::g->ImageData.generate());
+			GENERATE_VAR(ImageData, 39, ::g->ImageData.generate());
 		} else {
 		if ((ReadUShort(FTell()) == 0xF921)) {
 			SetBackColor(0xC0FFFF);
-			GENERATE_VAR(GraphicControlExtension, ::g->GraphicControlExtension.generate());
+			GENERATE_VAR(GraphicControlExtension, 52, ::g->GraphicControlExtension.generate());
 		} else {
 		if ((ReadUShort(FTell()) == 0xFE21)) {
 			SetBackColor(0xFFFFC0);
-			GENERATE_VAR(CommentExtension, ::g->CommentExtension.generate());
+			GENERATE_VAR(CommentExtension, 56, ::g->CommentExtension.generate());
 		} else {
 		if ((ReadUShort(FTell()) == 0x0121)) {
 			SetBackColor(0xC0C0C0);
-			GENERATE_VAR(PlainTextExtension, ::g->PlainTextExtension.generate());
+			GENERATE_VAR(PlainTextExtension, 70, ::g->PlainTextExtension.generate());
 		} else {
 		if ((ReadUShort(FTell()) == 0xFF21)) {
 			SetBackColor(0xC0C0FF);
-			GENERATE_VAR(ApplicationExtension, ::g->ApplicationExtension.generate());
+			GENERATE_VAR(ApplicationExtension, 78, ::g->ApplicationExtension.generate());
 		} else {
 			SetBackColor(0xFF8080);
-			GENERATE_VAR(UndefinedData, ::g->UndefinedData.generate());
+			GENERATE_VAR(UndefinedData, 82, ::g->UndefinedData.generate());
 		};
 		};
 		};
@@ -2029,7 +2030,7 @@ TRAILER* TRAILER::generate() {
 		generated = 1;
 	_startof = FTell();
 
-	GENERATE_VAR(GIFTrailer, ::g->GIFTrailer.generate({ 0x3B }));
+	GENERATE_VAR(GIFTrailer, 84, ::g->GIFTrailer.generate({ 0x3B }));
 
 	_sizeof = FTell() - _startof;
 	return this;
@@ -2042,22 +2043,22 @@ void generate_file() {
 
 	LittleEndian();
 	SetBackColor(0xFFFFFF);
-	GENERATE(GifHeader, ::g->GifHeader.generate());
+	GENERATE(GifHeader, 2, ::g->GifHeader.generate());
 	if ((::g->GifHeader().Signature() != "GIF")) {
 		Warning("File is not a valid GIF. Template stopped.");
 		exit_template(-1);
 	};
 	SetBackColor(0xE0E0E0);
-	GENERATE(LogicalScreenDescriptor, ::g->LogicalScreenDescriptor.generate());
+	GENERATE(LogicalScreenDescriptor, 13, ::g->LogicalScreenDescriptor.generate());
 	if ((::g->LogicalScreenDescriptor().PackedFields().GlobalColorTableFlag() == 1)) {
 		SetBackColor(0xC0C0C0);
-		GENERATE(GlobalColorTable, ::g->GlobalColorTable.generate());
+		GENERATE(GlobalColorTable, 18, ::g->GlobalColorTable.generate());
 	};
 	SetBackColor(0xFFFFFF);
-	GENERATE(Data, ::g->Data_.generate());
+	GENERATE(Data, 83, ::g->Data_.generate());
 	SetBackColor(0xFFFFFF);
 	SetEvilBit(false);
-	GENERATE(Trailer, ::g->Trailer.generate());
+	GENERATE(Trailer, 85, ::g->Trailer.generate());
 
 	file_acc.finish();
 	delete_globals();
