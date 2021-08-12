@@ -644,8 +644,6 @@ def record_temp(type, index):
         elements.append(index)
 
 def record(classname, decl, index):
-    if index == 41 or index == 116 or index == 117:
-        print("record: " +str(index)+ " ,Type: "+ decl.type.cpp)
     if decl.type.cpp not in type_dict.keys():
         type_dict[decl.type.cpp] = [index]
     elif index not in type_dict[decl.type.cpp]:
@@ -659,35 +657,37 @@ def create_path_dict(path_dict, current, previous, rev_graph):
     if current not in path_dict.keys():
         path_dict[current] = [(current, 0)]
         if previous != None:
+            temp2 = path_dict[current]
             for values in path_dict[previous]:
-                temp2 = path_dict[current]
                 temp2.append((values[0], values[1]+1))
-                path_dict[current] = temp2
+            path_dict[current] = temp2
     else:
-        if previous != None:
-            for values in path_dict[previous]:
-                temp = (values[0], values[1]+1)
-                inside = False
-                for val in path_dict[current]:
-                    if val[0] == temp[0]:
-                        inside = True
-                        if temp[1] < val[1]:
-                            vals = path_dict[current]
-                            vals.remove(val)
-                            vals.append((temp))
-                            path_dict[current] = vals
-                        break
-                if not inside:
-                    if temp not in path_dict[current]:
-                        temp2 = path_dict[current]
-                        temp2.append((values[0], values[1]+1))
-                        path_dict[current] = temp2
-
+        for values in path_dict[previous]:
+            temp = (values[0], values[1]+1)
+            inside = False
+            for val in path_dict[current]:
+                if val[0] == temp[0]:
+                    inside = True
+                    if temp[1] < val[1]:
+                        vals = path_dict[current]
+                        vals.remove(val)
+                        vals.append((temp))
+                        path_dict[current] = vals
+                    break
+            if not inside:
+                if temp not in path_dict[current]:
+                    temp2 = path_dict[current]
+                    temp2.append((values[0], values[1]+1))
+                    path_dict[current] = temp2
+    print("Current: "+str(current)+", Previous: "+str(previous))
+    print(path_dict[current])
     for next in rev_graph[current]:
         if next == (-1):
+            print(-1)
             break
         if all(next != found[0] for found in path_dict[current]):
             path_dict = create_path_dict(path_dict, next, current, rev_graph)
+    print("Time to leave")
     return path_dict
 
 def final_touch():
@@ -849,6 +849,7 @@ class PfpInterp(object):
             if node.type not in self._indexes.keys():
                 self._indexes[node.type] = self._ID
                 self._ID += 1
+            print("G1, Name: "+ node.name+ ", Type: "+str(node.type)+", Index: "+str(self._indexes[node.type]))
             self._variable_types[node.name] = classname
             node.cpp += "(" + name + ", " + str(self._indexes[node.type]) + ", ::g->" + node.name + ".generate("
             arg_num = 0
@@ -868,7 +869,10 @@ class PfpInterp(object):
             if classname not in self._to_define:
                 self._to_define[classname] = []
             self._to_define[classname].append((node.name, node, len(self._incomplete_stack) > 1))
-            node.cpp = "/*TODO field " + node.name + "("
+            if node.type not in self._indexes.keys():
+                    self._indexes[node.type] = self._ID
+                    self._ID += 1
+            node.cpp = "/*TODO field " + node.name + ", ID: "+ str(self._indexes[node.type])+"("
             if hasattr(node.type, "args") and node.type.args:
                 for arg in node.type.args.exprs:
                     node.cpp += arg.cpp + ", "
@@ -1152,9 +1156,10 @@ class PfpInterp(object):
                 else:
                     record('file', node, self._indexes[node.type])
                 self._variable_types[field_name] = classname
+                print("G2, Name: "+ node.name+ ", Type: "+str(node.type)+", Index: "+str(self._indexes[node.type]))
                 node.cpp += "(" + name + ", " + str(self._indexes[node.type]) + ", ::g->" + field_name + ".generate("
                 arg_num = 0
-                todofield = "/*TODO field " + field_name + "("
+                todofield = "/*TODO field " + field_name + ", ID: "+ str(self._indexes[node.type])+"("
                 if hasattr(node.type, "args") and node.type.args:
                     for arg in node.type.args.exprs:
                         arg_num += 1
@@ -1876,6 +1881,7 @@ class PfpInterp(object):
         node.cpp += "\nvoid delete_globals() { delete ::g; }\n"
 
         for a, b in self._to_replace:
+            print("A: "+ a+ " ,B: "+b)
             node.cpp = node.cpp.replace(a, b)
         for local in self._global_locals:
             node.cpp = node.cpp.replace("/**/" + local + "()", "::g->" + local)
@@ -2399,6 +2405,7 @@ class PfpInterp(object):
                 if node.type not in self._indexes.keys():
                     self._indexes[node.type] = self._ID
                     self._ID += 1
+                print("G3, Name: "+ node.name+ ", Type: "+str(node.type)+", Index: "+str(self._indexes[node.type]))
                 record_temp(classname, self._indexes[node.type])
                 node.cpp += "(" + node.originalname + ", "  + str(self._indexes[node.type]) + ", ::g->" + node.name + ".generate("
                 if node.type.dim is not None:
@@ -2424,6 +2431,7 @@ class PfpInterp(object):
                 if node.type not in self._indexes.keys():
                     self._indexes[node.type] = self._ID
                     self._ID += 1
+                print("G4, Name: "+ node.name+ ", Type: "+str(node.type)+", Index: "+str(self._indexes[node.type]))
                 node.cpp += "(" + node.name + ", "  + str(self._indexes[node.type]) + ", " + classname + "_generate("
                 if node.init is not None:
                     self._handle_node(node.init, scope, ctxt, stream)
@@ -2531,6 +2539,7 @@ class PfpInterp(object):
                     if node.type not in self._indexes.keys():
                         self._indexes[node.type] = self._ID
                         self._ID += 1
+                    print("G5, Name: "+ node.name+ ", Type: "+str(node.type)+", Index: "+str(self._indexes[node.type]))
                     node.cpp += "(" + node.originalname + ", "  + str(self._indexes[node.type]) + ", ::g->" + node.name + ".generate("
                     if is_bitfield:
                         node.cpp += node.bitsize.cpp
@@ -2556,6 +2565,7 @@ class PfpInterp(object):
                     if node.type not in self._indexes.keys():
                         self._indexes[node.type] = self._ID
                         self._ID += 1
+                    print("G6, Name: "+ node.name+ ", Type: "+str(node.type)+", Index: "+str(self._indexes[node.type]))
                     node.cpp += "(" + node.name + ", "  + str(self._indexes[node.type]) + ", " + classname + "_generate("
                     if node.init is not None:
                         self._handle_node(node.init, scope, ctxt, stream)
