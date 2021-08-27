@@ -164,13 +164,14 @@ extern bool found_path;
 extern std::vector<int> to_cover;
 extern std::vector<int> chosen;
 extern int path_pos;
-bool k_paths = false;
+bool is_k_paths = false;
+extern std::vector<std::vector<int>> k_paths;
 extern unsigned int previous_gen_pos;
 extern int tries;
 
 
 void start_generation(const char* name, unsigned index) {
-	if (k_paths){
+	if (is_k_paths){
 		bool on_path;
 		unsigned int k = chosen.size();
 		k_path_stack.emplace_back(index);
@@ -180,11 +181,12 @@ void start_generation(const char* name, unsigned index) {
 				if (k_path_stack[k_path_stack.size()-1] == to_cover[k_path_stack.size()-1]){
 					previous_gen_pos++;
 					if (file_acc.rand_pos > position){
-						position = file_acc.rand_prev;
+						position = file_acc.rand_pos;
 						tries = 0;
 					}
 					on_path = true;
 				}
+				//TODO: exit condition might be wrong
 				if(previous_gen_pos == to_cover.size()){
 					found_path = true;
 					on_path = true;
@@ -192,7 +194,7 @@ void start_generation(const char* name, unsigned index) {
 			}
 			if(!on_path){
 				if (k_path_stack.size() <= previous_gen_pos){
-					std::cout << "K-path abortion , Current Position: " << position << " Current rand_pos " << file_acc.rand_pos << "\n";
+					//std::cout << "K-path abortion , Current Position: " << position << " Current rand_pos " << file_acc.rand_pos << "\n";
 					throw "K-path abortion" ;
 				}
 			}
@@ -205,9 +207,13 @@ void start_generation(const char* name, unsigned index) {
 				i++;
 			}
 		}
-		if (std::find(found_paths.begin(), found_paths.end(), temp_path) == found_paths.end())
+		if (std::find(found_paths.begin(), found_paths.end(), temp_path) == found_paths.end()){
 			found_paths.emplace_back(temp_path);
-		std::cout << "Current ID: " << index << " Found paths: "<< found_paths.size() << " Stack size: " << k_path_stack.size() << " Found path: " << found_path <<  " Prev Gen Pos: " << previous_gen_pos << " Current Position: " << position << "\n";
+			//Check if our chosen path, or a different path that we didn't cover yet, was covered
+			if (temp_path == chosen || std::find(k_paths.begin(), k_paths.end(), temp_path) != k_paths.end())
+				found_path = true;
+		}
+		//std::cout << "Current ID: " << index << " Found paths: "<< found_paths.size() << " Stack size: " << k_path_stack.size() << " Found path: " << found_path <<  " Prev Gen Pos: " << previous_gen_pos << " Current Position: " << position << "\n";
 	}
 	if (!get_parse_tree)
 		return;

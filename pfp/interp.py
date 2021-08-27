@@ -630,12 +630,12 @@ class Scope(object):
     # def __setattr__
 
 reachability_list = []
-terminals_list = []
-non_terminals_list = []
+final_reachability_dict = {}
 elements = []
 type_dict = {}
 temp_dict = {}
 inv_type = {}
+covered = []
 
 def record_temp(type, index):
     if index not in temp_dict.keys():
@@ -653,52 +653,42 @@ def record(classname, decl, index):
     if index not in elements:
         elements.append(index)
 
-def create_path_dict(path_dict, current, previous, rev_graph):
-    if current not in path_dict.keys():
-        path_dict[current] = [(current, 0)]
-        if previous != None:
-            temp2 = path_dict[current]
-            for values in path_dict[previous]:
-                temp2.append((values[0], values[1]+1))
-            path_dict[current] = temp2
+def create_path_dict(path_dict, current, status):
+    if current == 'file':
+        for element in final_reachability_dict[current]:
+            if inv_type[element] not in covered:
+                covered.append(inv_type[element])
+                status.append(inv_type[element])
+                path_dict = create_path_dict(path_dict, inv_type[element], status)
     else:
-        for values in path_dict[previous]:
-            temp = (values[0], values[1]+1)
-            inside = False
-            for val in path_dict[current]:
-                if val[0] == temp[0]:
-                    inside = True
-                    if temp[1] < val[1]:
-                        vals = path_dict[current]
-                        vals.remove(val)
-                        vals.append((temp))
-                        path_dict[current] = vals
-                    break
-            if not inside:
-                if temp not in path_dict[current]:
-                    temp2 = path_dict[current]
-                    temp2.append((values[0], values[1]+1))
-                    path_dict[current] = temp2
-    print("Current: "+str(current)+", Previous: "+str(previous))
-    print(path_dict[current])
-    for next in rev_graph[current]:
-        if next == (-1):
-            print(-1)
-            break
-        if all(next != found[0] for found in path_dict[current]):
-            path_dict = create_path_dict(path_dict, next, current, rev_graph)
-    print("Time to leave")
+        for element in final_reachability_dict[current]:
+            for t in status:
+                inside = False
+                bigger = False
+                biggerPair = None
+                for pair in path_dict[t]:
+                    if element == pair[1]:
+                        inside = True
+                        if pair[0] > len(status)-status.index(t):
+                            bigger = True
+                            biggerPair = pair
+                if not inside:
+                    path_dict[t].append((len(status)-status.index(t), element))
+                elif bigger:
+                    path_dict[t].replace(biggerPair, (len(status)-status.index(t), element))
+            if inv_type[element] not in covered and inv_type[element] in  final_reachability_dict.keys():
+                covered.append(inv_type[element])
+                status.append(inv_type[element])
+                path_dict = create_path_dict(path_dict, inv_type[element], status)
+                if len(status) > 0:
+                    status.pop()
     return path_dict
 
-def final_touch():
-    final_reachability_dict = {}
-    path_dict = {}
+def create_kpath_info():
+    terminals_list = []
+    non_terminals_list = []
 
     #overwrite struct types
-    for element in reachability_list:
-        if element[1] in temp_dict.keys():
-            element = (temp_dict[element[1]], element[1])
-
     to_change = []
     for key in type_dict.keys():
         for element in type_dict[key]:
@@ -707,10 +697,13 @@ def final_touch():
                 break
     
     for element in to_change:
-        type_dict[element[0]] = type_dict[element[1]]
+        if element[0] in type_dict.keys():
+            type_dict[element[0]] = list(set(type_dict[element[1]] + type_dict[element[0]]))
+        else:
+            type_dict[element[0]] = type_dict[element[1]]
         del type_dict[element[1]]
 
-    #create the reachability graph
+    #create the reachability graph.
     for element in reachability_list:
         if element[0] in final_reachability_dict.keys():
             if element[1] not in final_reachability_dict[element[0]]:
@@ -718,13 +711,33 @@ def final_touch():
         else:
             final_reachability_dict[element[0]] = [element[1]]
 
+    #create empty status list for path_tree as well as a index -> type dictionary.
+    status = []
+    temp_path_dict = {}
+    path_dict = {}
+    for k,v in type_dict.items():
+        for x in v:
+            inv_type[x] = k
+    for key in final_reachability_dict:
+        temp_path_dict[key] = [(1, x) for x in final_reachability_dict[key]]
+    temp_path_dict = create_path_dict(temp_path_dict, 'file', status)
+
+    #change struct types to IDs
+    for key in temp_path_dict.keys():
+        if key != 'file':
+            for value in type_dict[key]:
+                temp = [(0, value) if t[1] == value else t for t in temp_path_dict[key]]
+                if (0, value) not in temp:
+                    path_dict[value] = temp + [(0, value)]
+                else:
+                 path_dict[value] = temp
 
     #change the collected types with all of their possible IDs
     for key in type_dict.keys():
         if key in final_reachability_dict.keys():
             values = final_reachability_dict[key]
-            for value in type_dict[key]:
-                final_reachability_dict[value] = values
+            for ID_key in type_dict[key]:
+                final_reachability_dict[ID_key] = values
             del final_reachability_dict[key]
     if "file" in final_reachability_dict.keys():
         final_reachability_dict[-1] = final_reachability_dict.pop("file")
@@ -732,23 +745,8 @@ def final_touch():
     non_terminals_list = final_reachability_dict.keys()
     terminals_list = elements - non_terminals_list
 
-    #create dictionary to use when trying to find the shortest way to a given element
-    reverse_graph = {}
-    for key in final_reachability_dict.keys():
-        for value in final_reachability_dict[key]:
-            if value not in reverse_graph.keys():
-                reverse_graph[value] = [key]
-            elif key not in reverse_graph[value]:
-                reverse_graph[value].append(key)
-
-    #invert type dict to check which type a certain ID has
-    #inv_type = {v: k for k, v in type_dict.items()}
-
-    for element in terminals_list:
-        path_dict = create_path_dict(path_dict, element, None, reverse_graph)
-
     #create the cpp file used to take the information out of later
-    f = open("kPathParens.cpp", "w")
+    f = open("kPathInfo.cpp", "w")
     f.write("#include <map> \n#include <vector> \n#include <list> \n\n")
     f.write("std::map<int, std::vector<int>> get_reachabilities(){ \n    std::map<int, std::vector<int>> reach;\n")
     parent_number = 0
@@ -772,10 +770,10 @@ def final_touch():
         temp = 0
         for val in path_dict[key]:
             if temp == 0:
-                f.write('std::make_pair('+str(val[1])+','+str(val[0])+")")
+                f.write('std::make_pair('+str(val[0])+','+str(val[1])+")")
                 temp += 1
             else:
-                f.write(', std::make_pair('+str(val[1])+','+str(val[0])+")")
+                f.write(', std::make_pair('+str(val[0])+','+str(val[1])+")")
         f.write("});\n")
         parent_number += 1
     f.write("    return paths;\n}\n")
@@ -849,7 +847,6 @@ class PfpInterp(object):
             if node.type not in self._indexes.keys():
                 self._indexes[node.type] = self._ID
                 self._ID += 1
-            print("G1, Name: "+ node.name+ ", Type: "+str(node.type)+", Index: "+str(self._indexes[node.type]))
             self._variable_types[node.name] = classname
             node.cpp += "(" + name + ", " + str(self._indexes[node.type]) + ", ::g->" + node.name + ".generate("
             arg_num = 0
@@ -1156,7 +1153,6 @@ class PfpInterp(object):
                 else:
                     record('file', node, self._indexes[node.type])
                 self._variable_types[field_name] = classname
-                print("G2, Name: "+ node.name+ ", Type: "+str(node.type)+", Index: "+str(self._indexes[node.type]))
                 node.cpp += "(" + name + ", " + str(self._indexes[node.type]) + ", ::g->" + field_name + ".generate("
                 arg_num = 0
                 todofield = "/*TODO field " + field_name + ", ID: "+ str(self._indexes[node.type])+"("
@@ -1774,7 +1770,7 @@ class PfpInterp(object):
         :returns: TODO
 
         """
-        node.cpp = "#include <cstdlib>\n#include <cstdio>\n#include <string>\n#include <vector>\n#include <unordered_map>\n#include \"bt.h\"\n#include \"kPathParens.cpp\"\n"
+        node.cpp = "#include <cstdlib>\n#include <cstdio>\n#include <string>\n#include <vector>\n#include <unordered_map>\n#include \"bt.h\"\n#include \"kPathInfo.cpp\"\n"
         self._root = ctxt = fields.Dom(stream)
         ctxt._pfp__scope = scope
         self._root._pfp__name = "__root"
@@ -1881,7 +1877,6 @@ class PfpInterp(object):
         node.cpp += "\nvoid delete_globals() { delete ::g; }\n"
 
         for a, b in self._to_replace:
-            print("A: "+ a+ " ,B: "+b)
             node.cpp = node.cpp.replace(a, b)
         for local in self._global_locals:
             node.cpp = node.cpp.replace("/**/" + local + "()", "::g->" + local)
@@ -1895,7 +1890,7 @@ class PfpInterp(object):
         print(node.cpp, file=outfile)
         outfile.close()
         if self._generate:
-            final_touch()
+            create_kpath_info()
             print("Finished creating cpp generator.")
             if lookahead:
                 print("\nLookahead functions found:\n")
@@ -2405,7 +2400,6 @@ class PfpInterp(object):
                 if node.type not in self._indexes.keys():
                     self._indexes[node.type] = self._ID
                     self._ID += 1
-                print("G3, Name: "+ node.name+ ", Type: "+str(node.type)+", Index: "+str(self._indexes[node.type]))
                 record_temp(classname, self._indexes[node.type])
                 node.cpp += "(" + node.originalname + ", "  + str(self._indexes[node.type]) + ", ::g->" + node.name + ".generate("
                 if node.type.dim is not None:
@@ -2431,7 +2425,6 @@ class PfpInterp(object):
                 if node.type not in self._indexes.keys():
                     self._indexes[node.type] = self._ID
                     self._ID += 1
-                print("G4, Name: "+ node.name+ ", Type: "+str(node.type)+", Index: "+str(self._indexes[node.type]))
                 node.cpp += "(" + node.name + ", "  + str(self._indexes[node.type]) + ", " + classname + "_generate("
                 if node.init is not None:
                     self._handle_node(node.init, scope, ctxt, stream)
@@ -2539,7 +2532,6 @@ class PfpInterp(object):
                     if node.type not in self._indexes.keys():
                         self._indexes[node.type] = self._ID
                         self._ID += 1
-                    print("G5, Name: "+ node.name+ ", Type: "+str(node.type)+", Index: "+str(self._indexes[node.type]))
                     node.cpp += "(" + node.originalname + ", "  + str(self._indexes[node.type]) + ", ::g->" + node.name + ".generate("
                     if is_bitfield:
                         node.cpp += node.bitsize.cpp
@@ -2565,7 +2557,6 @@ class PfpInterp(object):
                     if node.type not in self._indexes.keys():
                         self._indexes[node.type] = self._ID
                         self._ID += 1
-                    print("G6, Name: "+ node.name+ ", Type: "+str(node.type)+", Index: "+str(self._indexes[node.type]))
                     node.cpp += "(" + node.name + ", "  + str(self._indexes[node.type]) + ", " + classname + "_generate("
                     if node.init is not None:
                         self._handle_node(node.init, scope, ctxt, stream)

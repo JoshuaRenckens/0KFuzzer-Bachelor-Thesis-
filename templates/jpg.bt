@@ -875,19 +875,13 @@ typedef struct tgDIRENTRY {
 			default:
 				switch (dataFormat) {
 					case uByte:
-						struct {
-							uchar oneByteData[nComponent];
-						} strAscii;
+						uchar oneByteData[nComponent];
 						break;
 					case ascString:
-						struct StrAscii1 {
-							char oneByteData[nComponent];
-						} strAscii <read=ReadAscString1>;
+						uchar oneByteData[nComponent];
 						break;
 					case undefined:
-						struct {
-							uchar oneByteData[nComponent];
-						} strAscii;
+						uchar oneByteData[nComponent];
 						break;
 					case uShort:
 						for (j = 0; j < nComponent; j++)
@@ -965,14 +959,10 @@ typedef struct tgIFD {
 			default:
 				switch(dirEntry[i].dataFormat) {
 					case ascString:
-						struct StrAscii {
-							char oneByteData[dirEntry[i].nComponent];
-						} strAscii <read=ReadAscString>;
+						uchar oneByteData[dirEntry[i].nComponent];
 						break;
 					case undefined:
-						struct {
-							uchar oneByteData[dirEntry[i].nComponent];
-						} strAscii;
+						uchar oneByteData[dirEntry[i].nComponent];
 						break;
 					case uShort:
 						struct {

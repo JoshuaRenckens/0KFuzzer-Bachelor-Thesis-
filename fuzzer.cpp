@@ -1209,9 +1209,9 @@ std::list<std::vector<int>> get_kPaths(int k, std::map<int, std::vector<int>> re
 	if(k == 1){
 		terminals.merge(keys);
 		for(auto it = terminals.begin(); it != terminals.end(); ++it){
-			std::list<std::vector<int>> temp_list({{*it}});
-			kPaths.merge(temp_list);
+			kPaths.merge(std::list<std::vector<int>> ({{*it}}));
 		}
+		kPaths.remove(std::vector<int> ({{-1}}));
 		return kPaths;
 	}
 	// Iterate over all non-terminals
@@ -1265,7 +1265,7 @@ std::vector<int> get_Path(std::map<int, std::vector<std::pair<int,int>>> paths, 
 			break;
 		}
 	}
-	if (shortest_no != 0){
+	if (shortest_no > 0){
 		path.emplace_back(shortest_way);
 	}
 	if(shortest_no > 1){
@@ -1279,15 +1279,16 @@ int path_pos;
 bool found_path;
 std::vector<int> to_cover;
 std::vector<int> chosen;
-extern bool k_paths;
+extern bool is_k_paths;
 std::vector<int> k_path_stack;
 unsigned int previous_gen_pos;
 int tries = 0;
+std::vector<std::vector<int>> k_paths;
 
 int k_path_gen(int argc, char **argv){
-	get_parse_tree = true;
-	debug_print = true;
-	print_errors = true;
+	get_parse_tree = false;
+	debug_print = false;
+	print_errors = false;
 	//make sure we have the right amount and type of arguments
 	if (argc != 2){
 		printf("Wrong number of arguments \n");
@@ -1300,15 +1301,17 @@ int k_path_gen(int argc, char **argv){
 		printf("Wrong type of argument \n");
 		return 1;
 	}
-	k_paths = true;
+	is_k_paths = true;
 
 
 	//create a buffer that generates input containing the k-paths
 	unsigned char * buffer;
 	auto reachabilities = get_reachabilities();
 	auto k_paths_list = get_kPaths(k, reachabilities);
-	std::vector<std::vector<int>> k_paths(k_paths_list.begin(), k_paths_list.end());
+	k_paths = std::vector<std::vector<int>>(k_paths_list.begin(), k_paths_list.end());
+	//TODO: this doesn't actually shuffle ranodmly, every run results in the same shuffle.
 	std::random_shuffle(k_paths.begin(), k_paths.end());
+	auto k_paths_amount = k_paths.size();
 	auto it = k_paths.begin();
 	int generated_inputs = 0;
 	while(it != k_paths.end()){
@@ -1328,49 +1331,61 @@ int k_path_gen(int argc, char **argv){
 		}
 		chosen = cur_path;
 
-		// initialize randomness source
-		buffer = new unsigned char [MAX_RAND_SIZE];
-		int rand_fd = open("/dev/urandom", O_RDONLY);
-		ssize_t r = read(rand_fd, buffer, MAX_RAND_SIZE);
-		if (r != MAX_RAND_SIZE)
-			printf("Read only %ld bytes from /dev/urandom\n", r);
-		close(rand_fd);
-		unsigned char * idk = NULL;
-
-		// variables for iteration
-		position = 0;
+		int tries_per_path = 0;
 		unsigned int result = 0;
-		tries = 0;
-		while(tries < 5){
-			int last_non_zero = 0;
-			int pos_val = 0;
-			while(pos_val < 30){
-				//Change the value of the current byte in the randomness source
-				auto temp = rand() % 256;
-				buffer[position] = temp;
-				previous_gen_pos = 1;
-				k_path_stack = {-1};
-				result = afl_pre_save_handler(buffer, MAX_RAND_SIZE, &idk);
-				if (result != 0){
-					last_non_zero = temp;
-					std::cout << "We were here" << found_path << "\n";
-					if (found_path){
-						break;
+		unsigned char * generated_input = NULL;
+		while (tries_per_path < 5){
+			// initialize randomness source
+			buffer = new unsigned char [MAX_RAND_SIZE];
+			int rand_fd = open("/dev/urandom", O_RDONLY);
+			ssize_t r = read(rand_fd, buffer, MAX_RAND_SIZE);
+			if (r != MAX_RAND_SIZE)
+				printf("Read only %ld bytes from /dev/urandom\n", r);
+			close(rand_fd);
+			generated_input = NULL;
+
+			// variables for iteration
+			position = 0;
+			result = 0;
+			tries = 0;
+			while(tries < 5){
+				int last_non_zero = 0;
+				int pos_val = 0;
+				while(pos_val < 30){
+					//Change the value of the current byte in the randomness source
+					int temp;
+					if (pos_val == 0)
+						temp = 255;
+					else
+						temp = rand() % 256;
+					buffer[position] = temp;
+					previous_gen_pos = 1;
+					k_path_stack = {-1};
+					result = afl_pre_save_handler(buffer, MAX_RAND_SIZE, &generated_input);
+					if (result != 0){
+						last_non_zero = temp;
+						if (found_path){
+							break;
+						}
 					}
+					//Reset found paths if we didn't find path we wanted
+					found_paths.clear();
+					//Avoid locking ourselves into a broken generation
+					if (pos_val == 255 && result == 0){
+						buffer[position] = last_non_zero;
+					}
+					pos_val++;
 				}
-				//Reset found paths if we didn't find path we wanted
-				found_paths.clear();
-				//Avoid locking ourselves into a broken generation
-				if (pos_val == 255 && result == 0){
-					buffer[position] = last_non_zero;
+				if (found_path){
+					break;
 				}
-				pos_val++;
+				position++;
+				tries++;
 			}
 			if (found_path){
 				break;
 			}
-			position++;
-			tries++;
+			tries_per_path++;
 		}
 		//Generate the actual input here
 		std::cout << "K path before size:" << k_paths.size() << "\n";
@@ -1378,15 +1393,37 @@ int k_path_gen(int argc, char **argv){
 			for (auto it = found_paths.begin(); it != found_paths.end(); ++it){
 				auto current = *it;
 				k_paths.erase(std::remove(k_paths.begin(), k_paths.end(), *it), k_paths.end());
-				std::string f = "Input"+std::to_string(generated_inputs)+".txt";
-				const char* file_name = f.c_str();
-				write_file(file_name, idk, result);
 			}
 			generated_inputs++;
+			std::string f = "Input"+std::to_string(generated_inputs)+".txt";
+			const char* file_name = f.c_str();
+			write_file(file_name, generated_input, result);
+			it = k_paths.begin();
+		} else {
+			// Might need to remove again
+			++it;
 		}
 		std::cout << "Found path size:" << found_paths.size() << "\n";
 		std::cout << "K path after size:" << k_paths.size() << "\n";
 		found_paths.clear();
+	}
+	std::cout << "Amount of inputs generated: " << generated_inputs << ", Amount of k-paths covered: " << k_paths_amount-k_paths.size() << "/" << k_paths_amount << "\n";
+	std::cout << "List of k-paths that we didn't find: \n";
+	int e = 0;
+	for (auto i = k_paths.begin(); i != k_paths.end(); ++i){
+		auto k_path = *i;
+		int t = 0;
+		std::cout << "K-path " << e << ": ";
+		for (auto it = k_path.begin(); it != k_path.end(); ++it){
+			if(t == 0){
+				std::cout << *it;
+			}else{
+				std::cout << " -> " << *it;
+			}
+			t++;
+		}
+		e++;
+		std::cout << "\n\n";
 	}
 	return 0;
 }
