@@ -45,7 +45,10 @@ public:
 	int64 _startof = 0;
 	std::size_t _sizeof = 0;
 	std::string operator () () { return value; }
-	char operator [] (int index) { return value[index]; }
+	char operator [] (int index) {
+		assert_cond((unsigned)index < value.size(), "array index out of bounds");
+		return value[index];
+	}
 	char_array_class(char_class& element, std::unordered_map<int, std::vector<char>> element_known_values = {})
 		: element(element), element_known_values(element_known_values) {}
 	char_array_class(char_class& element, std::vector<std::string> known_values)
@@ -116,7 +119,10 @@ public:
 	int64 _startof = 0;
 	std::size_t _sizeof = 0;
 	GIFHEADER& operator () () { return *instances.back(); }
-	GIFHEADER* operator [] (int index) { return instances[index]; }
+	GIFHEADER* operator [] (int index) {
+		assert_cond((unsigned)index < instances.size(), "instance index out of bounds");
+		return instances[index];
+	}
 	GIFHEADER(std::vector<GIFHEADER*>& instances) : instances(instances) { instances.push_back(this); }
 	~GIFHEADER() {
 		if (generated == 2)
@@ -226,7 +232,10 @@ public:
 	int64 _startof = 0;
 	std::size_t _sizeof = 0;
 	LOGICALSCREENDESCRIPTOR_PACKEDFIELDS& operator () () { return *instances.back(); }
-	LOGICALSCREENDESCRIPTOR_PACKEDFIELDS* operator [] (int index) { return instances[index]; }
+	LOGICALSCREENDESCRIPTOR_PACKEDFIELDS* operator [] (int index) {
+		assert_cond((unsigned)index < instances.size(), "instance index out of bounds");
+		return instances[index];
+	}
 	LOGICALSCREENDESCRIPTOR_PACKEDFIELDS(std::vector<LOGICALSCREENDESCRIPTOR_PACKEDFIELDS*>& instances) : instances(instances) { instances.push_back(this); }
 	~LOGICALSCREENDESCRIPTOR_PACKEDFIELDS() {
 		if (generated == 2)
@@ -313,7 +322,10 @@ public:
 	int64 _startof = 0;
 	std::size_t _sizeof = 0;
 	LOGICALSCREENDESCRIPTOR& operator () () { return *instances.back(); }
-	LOGICALSCREENDESCRIPTOR* operator [] (int index) { return instances[index]; }
+	LOGICALSCREENDESCRIPTOR* operator [] (int index) {
+		assert_cond((unsigned)index < instances.size(), "instance index out of bounds");
+		return instances[index];
+	}
 	LOGICALSCREENDESCRIPTOR(std::vector<LOGICALSCREENDESCRIPTOR*>& instances) : instances(instances) { instances.push_back(this); }
 	~LOGICALSCREENDESCRIPTOR() {
 		if (generated == 2)
@@ -359,7 +371,10 @@ public:
 	int64 _startof = 0;
 	std::size_t _sizeof = 0;
 	RGB& operator () () { return *instances.back(); }
-	RGB* operator [] (int index) { return instances[index]; }
+	RGB* operator [] (int index) {
+		assert_cond((unsigned)index < instances.size(), "instance index out of bounds");
+		return instances[index];
+	}
 	RGB(std::vector<RGB*>& instances) : instances(instances) { instances.push_back(this); }
 	~RGB() {
 		if (generated == 2)
@@ -383,7 +398,10 @@ public:
 	int64 _startof = 0;
 	std::size_t _sizeof = 0;
 	std::vector<RGB*> operator () () { return value; }
-	RGB operator [] (int index) { return *value[index]; }
+	RGB operator [] (int index) {
+		assert_cond((unsigned)index < value.size(), "array index out of bounds");
+		return *value[index];
+	}
 	RGB_array_class(RGB& element) : element(element) {}
 
 	std::vector<RGB*> generate(unsigned size) {
@@ -421,7 +439,10 @@ public:
 	int64 _startof = 0;
 	std::size_t _sizeof = 0;
 	GLOBALCOLORTABLE& operator () () { return *instances.back(); }
-	GLOBALCOLORTABLE* operator [] (int index) { return instances[index]; }
+	GLOBALCOLORTABLE* operator [] (int index) {
+		assert_cond((unsigned)index < instances.size(), "instance index out of bounds");
+		return instances[index];
+	}
 	GLOBALCOLORTABLE(std::vector<GLOBALCOLORTABLE*>& instances) : instances(instances) { instances.push_back(this); }
 	~GLOBALCOLORTABLE() {
 		if (generated == 2)
@@ -482,7 +503,10 @@ public:
 	int64 _startof = 0;
 	std::size_t _sizeof = 0;
 	IMAGEDESCRIPTOR_PACKEDFIELDS& operator () () { return *instances.back(); }
-	IMAGEDESCRIPTOR_PACKEDFIELDS* operator [] (int index) { return instances[index]; }
+	IMAGEDESCRIPTOR_PACKEDFIELDS* operator [] (int index) {
+		assert_cond((unsigned)index < instances.size(), "instance index out of bounds");
+		return instances[index];
+	}
 	IMAGEDESCRIPTOR_PACKEDFIELDS(std::vector<IMAGEDESCRIPTOR_PACKEDFIELDS*>& instances) : instances(instances) { instances.push_back(this); }
 	~IMAGEDESCRIPTOR_PACKEDFIELDS() {
 		if (generated == 2)
@@ -546,7 +570,10 @@ public:
 	int64 _startof = 0;
 	std::size_t _sizeof = 0;
 	IMAGEDESCRIPTOR& operator () () { return *instances.back(); }
-	IMAGEDESCRIPTOR* operator [] (int index) { return instances[index]; }
+	IMAGEDESCRIPTOR* operator [] (int index) {
+		assert_cond((unsigned)index < instances.size(), "instance index out of bounds");
+		return instances[index];
+	}
 	IMAGEDESCRIPTOR(std::vector<IMAGEDESCRIPTOR*>& instances) : instances(instances) { instances.push_back(this); }
 	~IMAGEDESCRIPTOR() {
 		if (generated == 2)
@@ -584,7 +611,10 @@ public:
 	int64 _startof = 0;
 	std::size_t _sizeof = 0;
 	LOCALCOLORTABLE& operator () () { return *instances.back(); }
-	LOCALCOLORTABLE* operator [] (int index) { return instances[index]; }
+	LOCALCOLORTABLE* operator [] (int index) {
+		assert_cond((unsigned)index < instances.size(), "instance index out of bounds");
+		return instances[index];
+	}
 	LOCALCOLORTABLE(std::vector<LOCALCOLORTABLE*>& instances) : instances(instances) { instances.push_back(this); }
 	~LOCALCOLORTABLE() {
 		if (generated == 2)
@@ -624,7 +654,10 @@ public:
 	int64 _startof = 0;
 	std::size_t _sizeof = 0;
 	DATASUBBLOCK& operator () () { return *instances.back(); }
-	DATASUBBLOCK* operator [] (int index) { return instances[index]; }
+	DATASUBBLOCK* operator [] (int index) {
+		assert_cond((unsigned)index < instances.size(), "instance index out of bounds");
+		return instances[index];
+	}
 	DATASUBBLOCK(std::vector<DATASUBBLOCK*>& instances) : instances(instances) { instances.push_back(this); }
 	~DATASUBBLOCK() {
 		if (generated == 2)
@@ -669,7 +702,10 @@ public:
 	int64 _startof = 0;
 	std::size_t _sizeof = 0;
 	DATASUBBLOCKS& operator () () { return *instances.back(); }
-	DATASUBBLOCKS* operator [] (int index) { return instances[index]; }
+	DATASUBBLOCKS* operator [] (int index) {
+		assert_cond((unsigned)index < instances.size(), "instance index out of bounds");
+		return instances[index];
+	}
 	DATASUBBLOCKS(std::vector<DATASUBBLOCKS*>& instances) : instances(instances) { instances.push_back(this); }
 	~DATASUBBLOCKS() {
 		if (generated == 2)
@@ -709,7 +745,10 @@ public:
 	int64 _startof = 0;
 	std::size_t _sizeof = 0;
 	IMAGEDATA& operator () () { return *instances.back(); }
-	IMAGEDATA* operator [] (int index) { return instances[index]; }
+	IMAGEDATA* operator [] (int index) {
+		assert_cond((unsigned)index < instances.size(), "instance index out of bounds");
+		return instances[index];
+	}
 	IMAGEDATA(std::vector<IMAGEDATA*>& instances) : instances(instances) { instances.push_back(this); }
 	~IMAGEDATA() {
 		if (generated == 2)
@@ -761,7 +800,10 @@ public:
 	int64 _startof = 0;
 	std::size_t _sizeof = 0;
 	GRAPHICCONTROLEXTENSION_DATASUBBLOCK_PACKEDFIELDS& operator () () { return *instances.back(); }
-	GRAPHICCONTROLEXTENSION_DATASUBBLOCK_PACKEDFIELDS* operator [] (int index) { return instances[index]; }
+	GRAPHICCONTROLEXTENSION_DATASUBBLOCK_PACKEDFIELDS* operator [] (int index) {
+		assert_cond((unsigned)index < instances.size(), "instance index out of bounds");
+		return instances[index];
+	}
 	GRAPHICCONTROLEXTENSION_DATASUBBLOCK_PACKEDFIELDS(std::vector<GRAPHICCONTROLEXTENSION_DATASUBBLOCK_PACKEDFIELDS*>& instances) : instances(instances) { instances.push_back(this); }
 	~GRAPHICCONTROLEXTENSION_DATASUBBLOCK_PACKEDFIELDS() {
 		if (generated == 2)
@@ -813,7 +855,10 @@ public:
 	int64 _startof = 0;
 	std::size_t _sizeof = 0;
 	GRAPHICCONTROLSUBBLOCK& operator () () { return *instances.back(); }
-	GRAPHICCONTROLSUBBLOCK* operator [] (int index) { return instances[index]; }
+	GRAPHICCONTROLSUBBLOCK* operator [] (int index) {
+		assert_cond((unsigned)index < instances.size(), "instance index out of bounds");
+		return instances[index];
+	}
 	GRAPHICCONTROLSUBBLOCK(std::vector<GRAPHICCONTROLSUBBLOCK*>& instances) : instances(instances) { instances.push_back(this); }
 	~GRAPHICCONTROLSUBBLOCK() {
 		if (generated == 2)
@@ -865,7 +910,10 @@ public:
 	int64 _startof = 0;
 	std::size_t _sizeof = 0;
 	GRAPHICCONTROLEXTENSION& operator () () { return *instances.back(); }
-	GRAPHICCONTROLEXTENSION* operator [] (int index) { return instances[index]; }
+	GRAPHICCONTROLEXTENSION* operator [] (int index) {
+		assert_cond((unsigned)index < instances.size(), "instance index out of bounds");
+		return instances[index];
+	}
 	GRAPHICCONTROLEXTENSION(std::vector<GRAPHICCONTROLEXTENSION*>& instances) : instances(instances) { instances.push_back(this); }
 	~GRAPHICCONTROLEXTENSION() {
 		if (generated == 2)
@@ -911,7 +959,10 @@ public:
 	int64 _startof = 0;
 	std::size_t _sizeof = 0;
 	COMMENTEXTENSION& operator () () { return *instances.back(); }
-	COMMENTEXTENSION* operator [] (int index) { return instances[index]; }
+	COMMENTEXTENSION* operator [] (int index) {
+		assert_cond((unsigned)index < instances.size(), "instance index out of bounds");
+		return instances[index];
+	}
 	COMMENTEXTENSION(std::vector<COMMENTEXTENSION*>& instances) : instances(instances) { instances.push_back(this); }
 	~COMMENTEXTENSION() {
 		if (generated == 2)
@@ -993,7 +1044,10 @@ public:
 	int64 _startof = 0;
 	std::size_t _sizeof = 0;
 	PLAINTEXTSUBBLOCK& operator () () { return *instances.back(); }
-	PLAINTEXTSUBBLOCK* operator [] (int index) { return instances[index]; }
+	PLAINTEXTSUBBLOCK* operator [] (int index) {
+		assert_cond((unsigned)index < instances.size(), "instance index out of bounds");
+		return instances[index];
+	}
 	PLAINTEXTSUBBLOCK(std::vector<PLAINTEXTSUBBLOCK*>& instances) : instances(instances) { instances.push_back(this); }
 	~PLAINTEXTSUBBLOCK() {
 		if (generated == 2)
@@ -1045,7 +1099,10 @@ public:
 	int64 _startof = 0;
 	std::size_t _sizeof = 0;
 	PLAINTEXTEXTENTION& operator () () { return *instances.back(); }
-	PLAINTEXTEXTENTION* operator [] (int index) { return instances[index]; }
+	PLAINTEXTEXTENTION* operator [] (int index) {
+		assert_cond((unsigned)index < instances.size(), "instance index out of bounds");
+		return instances[index];
+	}
 	PLAINTEXTEXTENTION(std::vector<PLAINTEXTEXTENTION*>& instances) : instances(instances) { instances.push_back(this); }
 	~PLAINTEXTEXTENTION() {
 		if (generated == 2)
@@ -1091,7 +1148,10 @@ public:
 	int64 _startof = 0;
 	std::size_t _sizeof = 0;
 	APPLICATIONSUBBLOCK& operator () () { return *instances.back(); }
-	APPLICATIONSUBBLOCK* operator [] (int index) { return instances[index]; }
+	APPLICATIONSUBBLOCK* operator [] (int index) {
+		assert_cond((unsigned)index < instances.size(), "instance index out of bounds");
+		return instances[index];
+	}
 	APPLICATIONSUBBLOCK(std::vector<APPLICATIONSUBBLOCK*>& instances) : instances(instances) { instances.push_back(this); }
 	~APPLICATIONSUBBLOCK() {
 		if (generated == 2)
@@ -1143,7 +1203,10 @@ public:
 	int64 _startof = 0;
 	std::size_t _sizeof = 0;
 	APPLICATIONEXTENTION& operator () () { return *instances.back(); }
-	APPLICATIONEXTENTION* operator [] (int index) { return instances[index]; }
+	APPLICATIONEXTENTION* operator [] (int index) {
+		assert_cond((unsigned)index < instances.size(), "instance index out of bounds");
+		return instances[index];
+	}
 	APPLICATIONEXTENTION(std::vector<APPLICATIONEXTENTION*>& instances) : instances(instances) { instances.push_back(this); }
 	~APPLICATIONEXTENTION() {
 		if (generated == 2)
@@ -1189,7 +1252,10 @@ public:
 	int64 _startof = 0;
 	std::size_t _sizeof = 0;
 	UNDEFINEDDATA& operator () () { return *instances.back(); }
-	UNDEFINEDDATA* operator [] (int index) { return instances[index]; }
+	UNDEFINEDDATA* operator [] (int index) {
+		assert_cond((unsigned)index < instances.size(), "instance index out of bounds");
+		return instances[index];
+	}
 	UNDEFINEDDATA(std::vector<UNDEFINEDDATA*>& instances) : instances(instances) { instances.push_back(this); }
 	~UNDEFINEDDATA() {
 		if (generated == 2)
@@ -1263,12 +1329,16 @@ public:
 
 	/* locals */
 	std::vector<UBYTE> possible;
+	int has_data;
 
 	unsigned char generated = 0;
 	int64 _startof = 0;
 	std::size_t _sizeof = 0;
 	DATA& operator () () { return *instances.back(); }
-	DATA* operator [] (int index) { return instances[index]; }
+	DATA* operator [] (int index) {
+		assert_cond((unsigned)index < instances.size(), "instance index out of bounds");
+		return instances[index];
+	}
 	DATA(std::vector<DATA*>& instances) : instances(instances) { instances.push_back(this); }
 	~DATA() {
 		if (generated == 2)
@@ -1302,7 +1372,10 @@ public:
 	int64 _startof = 0;
 	std::size_t _sizeof = 0;
 	TRAILER& operator () () { return *instances.back(); }
-	TRAILER* operator [] (int index) { return instances[index]; }
+	TRAILER* operator [] (int index) {
+		assert_cond((unsigned)index < instances.size(), "instance index out of bounds");
+		return instances[index];
+	}
 	TRAILER(std::vector<TRAILER*>& instances) : instances(instances) { instances.push_back(this); }
 	~TRAILER() {
 		if (generated == 2)
@@ -1978,9 +2051,13 @@ DATA* DATA::generate() {
 	} else {
 		possible = { 0x2C };
 	};
+	has_data = false;
 	while ((ReadUByte(FTell(), possible) != 0x3B)) {
 		if ((ReadUByte(FTell()) == 0x2C)) {
-			possible.insert(possible.end(), { 0x3B });
+			if (!has_data) {
+				has_data = true;
+				possible.insert(possible.end(), { 0x3B });
+			};
 			SetBackColor(0xE0FFE0);
 			GENERATE_VAR(ImageDescriptor, 30, ::g->ImageDescriptor.generate());
 			if ((ImageDescriptor().PackedFields().LocalColorTableFlag() == 1)) {

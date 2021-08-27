@@ -157,6 +157,12 @@ extern bool is_big_endian;
 extern bool is_padded_bitfield;
 void generate_file();
 
+bool aflsmart_output = false;
+
+double get_validity() {
+	return (double)file_acc.parsed_file_size / (double)file_acc.final_file_size;
+}
+
 std::vector<std::vector<int>> found_paths;
 extern std::vector<int> k_path_stack;
 extern unsigned int position;
@@ -241,8 +247,26 @@ void end_generation() {
 		unsigned size = MAX_RAND_SIZE - file_acc.rand_pos;
 		if (size > MAX_RAND_SIZE - (rand_end + 1))
 			size = MAX_RAND_SIZE - (rand_end + 1);
-		memmove(file_acc.rand_buffer + file_acc.rand_pos, file_acc.rand_buffer + rand_end + 1, size);
+		memmove(file_acc.rand_buffer + file_acc.rand_pos, file_acc.rand_buffer + (rand_end + 1), size);
+		if (smart_swapping) {
+			if (rand_start2 > rand_end)
+				rand_start2 += file_acc.rand_pos - (rand_end + 1);
+			rand_end2 += file_acc.rand_pos - (rand_end + 1);
+		}
 		rand_end = file_acc.rand_pos - 1;
+	}
+	if (smart_swapping && back.rand_start == rand_start2 && (is_optional || strcmp(back.name, chunk_name2) == 0)) {
+		unsigned size = MAX_RAND_SIZE - file_acc.rand_pos;
+		if (size > MAX_RAND_SIZE - (rand_end2 + 1))
+			size = MAX_RAND_SIZE - (rand_end2 + 1);
+		memmove(file_acc.rand_buffer + file_acc.rand_pos, file_acc.rand_buffer + (rand_end2 + 1), size);
+		rand_end2 = file_acc.rand_pos - 1;
+	}
+	if (smart_abstraction && back.rand_start == rand_start && (is_optional || strcmp(back.name, chunk_name) == 0)) {
+		if (following_rand_size > MAX_RAND_SIZE - file_acc.rand_pos)
+			following_rand_size = MAX_RAND_SIZE - file_acc.rand_pos;
+		memcpy(file_acc.rand_buffer + file_acc.rand_pos, following_rand_buffer, following_rand_size);
+		smart_abstraction = false;
 	}
 
 	if (back.min < prev.min)
@@ -270,19 +294,23 @@ void end_generation() {
 			}
 			parent = &cell;
 		}
-		if (file_acc.rand_last != UINT_MAX)
-			printf(",Appendable");
-		if (back.rand_start != back.rand_start2)
-			printf(",Optional\n");
-		else
-			printf("\n");
+		if (aflsmart_output) {
+			printf(",Enabled\n");
+		} else {
+			if (file_acc.rand_last != UINT_MAX)
+				printf(",Appendable");
+			if (back.rand_start != back.rand_start_real)
+				printf(",Optional\n");
+			else
+				printf("\n");
+		}
 	}
 
 	if (get_chunk && back.min == chunk_start && back.max == chunk_end) {
 		printf("TARGET CHUNK FOUND\n");
 		rand_start = back.rand_start;
 		rand_end = file_acc.rand_pos - 1;
-		is_optional = back.rand_start != back.rand_start2;
+		is_optional = back.rand_start != back.rand_start_real;
 		chunk_name = back.name;
 		if (is_delete) {
 			is_following = true;
@@ -295,21 +323,21 @@ void end_generation() {
 		chunk_name = back.name;
 	}
 	
-	if (get_chunk && chunk_end == UINT_MAX && back.min == chunk_start && back.rand_start != back.rand_start2) {
+	if (get_chunk && chunk_end == UINT_MAX && back.min == chunk_start && back.rand_start != back.rand_start_real) {
 		printf("OPTIONAL CHUNK FOUND\n");
 		rand_start = back.rand_start;
 		chunk_name = back.name;
 	}
 	
 	if (get_all_chunks) {
-		if (back.rand_start != back.rand_start2) {
+		if (back.rand_start != back.rand_start_real) {
 			optional_chunks.emplace_back(file_index, back.rand_start, file_acc.rand_pos - 1, variable_types[back.name].c_str(), back.name);
 			insertion_points[file_index].emplace_back(back.rand_start, variable_types[back.name].c_str(), back.name);
 			is_following = true;
 			chunk_name = back.name;
 			rand_start = back.rand_start;
 			rand_end = file_acc.rand_pos - 1;
-		} else {
+		} else if (file_acc.rand_pos > back.rand_start) {
 			int size = non_optional_index[file_index].size();
 			int i;
 			for (i = 0; i < size; ++i) {
@@ -352,7 +380,8 @@ void set_generator() {
 }
 
 
-void setup_input(const char* filename) {
+bool setup_input(const char* filename) {
+	bool success = true;
 	debug_print = true;
 	int file_fd;
 	if (strcmp(filename, "-") == 0)
@@ -399,20 +428,23 @@ void setup_input(const char* filename) {
 			perror("Failed to stat input file");
 			exit(1);
 		}
-		if (st.st_size > MAX_FILE_SIZE) {
+		ssize_t file_size = st.st_size;
+		if (file_size > MAX_FILE_SIZE) {
 			fprintf(stderr, "File size exceeds MAX_FILE_SIZE\n");
-			exit(1);
+			file_size = MAX_FILE_SIZE;
+			success = false;
 		}
-		ssize_t size = read(file_fd, file_acc.file_buffer, st.st_size);
-		if (size != st.st_size) {
+		ssize_t size = read(file_fd, file_acc.file_buffer, file_size);
+		if (size != file_size) {
 			perror("Failed to read input file");
 			exit(1);
 		}
-		file_acc.seed(rand_buffer, MAX_RAND_SIZE, st.st_size);
+		file_acc.seed(rand_buffer, MAX_RAND_SIZE, file_size);
 	}
     
 	if (file_fd != STDIN_FILENO)
 		close(file_fd);
+	return success;
 }
 
 void save_output(const char* filename) {
@@ -447,7 +479,7 @@ unsigned copy_rand(unsigned char *dest) {
 
 void delete_globals();
 
-extern "C" size_t afl_pre_save_handler(unsigned char* data, size_t size, unsigned char** new_data) {
+extern "C" size_t ff_generate(unsigned char* data, size_t size, unsigned char** new_data) {
 	file_acc.seed(data, size, 0);
 	try {
 		generate_file();
@@ -466,7 +498,7 @@ extern "C" size_t afl_pre_save_handler(unsigned char* data, size_t size, unsigne
 	return file_acc.file_size;
 }
 
-extern "C" int afl_post_load_handler(unsigned char* data, size_t size, unsigned char** new_data, size_t* new_size) {
+extern "C" int ff_parse(unsigned char* data, size_t size, unsigned char** new_data, size_t* new_size) {
 	file_acc.generate = false;
 
 	if (size > MAX_FILE_SIZE) {
@@ -516,6 +548,7 @@ void check_array_length(unsigned& size) {
 			fprintf(stderr, "Array length too large: %d, replaced with %u\n", (signed)size, new_size);
 		size = new_size;
 	}
+	assert_cond(size <= MAX_FILE_SIZE - file_acc.file_pos, "Array length too large");
 }
 
 void ChangeArrayLength() {
@@ -629,7 +662,7 @@ int IsParsing() {
 	return !file_acc.generate;
 }
 
-int FEof() { return file_acc.feof(); }
+int FEof(double p = 0.125) { return file_acc.feof(p); }
 
 int64 FTell() { return file_acc.file_pos; }
 
