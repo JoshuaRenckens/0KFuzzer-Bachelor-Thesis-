@@ -19,15 +19,20 @@ bool is_following = false;
 bool following_is_optional = false;
 
 const char* chunk_name;
+const char* chunk_name2;
 int file_index = 0;
 
 bool get_chunk = false;
 bool get_all_chunks = false;
 bool smart_mutation = false;
+bool smart_abstraction = false;
+bool smart_swapping = false;
 unsigned chunk_start;
 unsigned chunk_end;
 unsigned rand_start;
 unsigned rand_end;
+unsigned rand_start2;
+unsigned rand_end2;
 bool is_optional = false;
 bool is_delete = false;
 
@@ -59,11 +64,10 @@ struct stack_cell {
 	const char* name;
 	std::unordered_map<std::string, int> counts;
 	unsigned rand_start = 0;
-	unsigned rand_start2 = 0;
+	unsigned rand_start_real = 0;
 	unsigned min = UINT_MAX;
 	unsigned max = 0;
-	unsigned line_no = 0;
-	stack_cell(const char* name, unsigned rand_start, unsigned rand_start2, unsigned line_no) : name(name), rand_start(rand_start), rand_start2(rand_start2), line_no(line_no) {}
+	stack_cell(const char* name, unsigned rand_start, unsigned rand_start_real) : name(name), rand_start(rand_start), rand_start_real(rand_start_real) {}
 	void clear() {
 		counts.clear();
 		min = UINT_MAX;
@@ -91,6 +95,7 @@ class file_accessor {
 	unsigned bitfield_bits = 0;
 	bool has_bitmap = false;
 	std::vector<bool> bitmap;
+	std::string string_buf;
 
 	unsigned long long parse_integer(unsigned char* file_buf, unsigned size, unsigned bits = 0) {
 		unsigned long long value = 0;
@@ -408,6 +413,7 @@ public:
 		rand_prev = 0;
 		rand_last = UINT_MAX;
 		following_is_optional = false;
+		is_following = false;
 
 		has_size = false;
 		allow_evil_values = !dont_be_evil;
@@ -428,15 +434,15 @@ public:
 		}
 	}
 
-	int feof() {
+	int feof(double p) {
 		if (file_pos < file_size)
 			return 0;
 		if (has_size)
 			return 1;
 		lookahead = true;
 		if (!generate)
-			parse = [this](unsigned char* file_buf) -> long long { return file_pos == final_file_size ? 7 : 0; };
-		int is_feof = rand_int(8, parse) == 7;
+			parse = [this](unsigned char* file_buf) -> long long { return file_pos == final_file_size ? 255 : 0; };
+		int is_feof = (rand_int(256, parse) >= 255 * (1.0 - p));
 		lookahead = false;
 		if (is_feof)
 			has_size = true;
@@ -682,31 +688,31 @@ public:
 				parse = [](unsigned char* file_buf) -> long long { return strlen((char*)file_buf); };
 			len = rand_int(80, parse);
 		}
-		unsigned char *buf = (unsigned char *) malloc(len + 1);
+
+		string_buf.resize(len + 1);
 		for (int i = 0; i < len; ++i) {
 			if (size == 0) {
 				if (!generate)
 					parse = [&i](unsigned char* file_buf) -> long long { return file_buf[i] - 1; };
-				buf[i] = rand_int(255, parse) + 1;
+				string_buf[i] = rand_int(255, parse) + 1;
 			} else {
 				if (!generate)
 					parse = [&i](unsigned char* file_buf) -> long long { return file_buf[i]; };
-				buf[i] = rand_int(256, parse);
+				string_buf[i] = rand_int(256, parse);
 			}
 		}
-		buf[len] = '\0';
+		string_buf[len] = '\0';
 		if (has_bitmap) {
 			for (int i = 0; i < len; ++i) {
 				if (bitmap[file_pos + i]) {
-					buf[i] = file_buffer[file_pos + i];
+					string_buf[i] = file_buffer[file_pos + i];
 				}
 			}
 		}
-		std::string value((char*)buf, len);
+		std::string value(string_buf.c_str(), len);
 		if (size == 0)
 			++len;
 		write_file(value.c_str(), len);
-		free(buf);
 		return value;
 	}
 
@@ -719,25 +725,25 @@ public:
 				parse = [](unsigned char* file_buf) -> long long { return strlen((char*)file_buf); };
 			len = rand_int(80, parse);
 		}
-		unsigned char *buf = (unsigned char *) malloc(len + 1);
+
+		string_buf.resize(len + 1);
 		for (int i = 0; i < len; ++i) {
 			if (!generate)
 				parse = [&i](unsigned char* file_buf) -> long long { return file_buf[i] - 32; };
-			buf[i] = rand_int(95, parse) + 32;
+			string_buf[i] = rand_int(95, parse) + 32;
 		}
-		buf[len] = '\0';
+		string_buf[len] = '\0';
 		if (has_bitmap) {
 			for (int i = 0; i < len; ++i) {
 				if (bitmap[file_pos + i]) {
-					buf[i] = file_buffer[file_pos + i];
+					string_buf[i] = file_buffer[file_pos + i];
 				}
 			}
 		}
-		std::string value((char*)buf, len);
+		std::string value(string_buf.c_str(), len);
 		if (size == 0)
 			++len;
 		write_file(value.c_str(), len);
-		free(buf);
 		return value;
 	}
 
@@ -750,27 +756,27 @@ public:
 				parse = [](unsigned char* file_buf) -> long long { return strlen((char*)file_buf); };
 			len = rand_int(80, parse);
 		}
-		unsigned char *buf = (unsigned char *) malloc(len + 1);
+
+		string_buf.resize(len + 1);
 		for (int i = 0; i < len; ++i) {
 			if (!generate)
 				parse = [&i](unsigned char* file_buf) -> long long { return file_buf[i] >= 161 ? file_buf[i] - 66 : file_buf[i] - 32; };
-			buf[i] = rand_int(190, parse) + 32;
-			if (buf[i] >= 127)
-				buf[i] += 34;
+			string_buf[i] = rand_int(190, parse) + 32;
+			if (string_buf[i] >= 127)
+				string_buf[i] += 34;
 		}
-		buf[len] = '\0';
+		string_buf[len] = '\0';
 		if (has_bitmap) {
 			for (int i = 0; i < len; ++i) {
 				if (bitmap[file_pos + i]) {
-					buf[i] = file_buffer[file_pos + i];
+					string_buf[i] = file_buffer[file_pos + i];
 				}
 			}
 		}
-		std::string value((char*)buf, len);
+		std::string value(string_buf.c_str(), len);
 		if (size == 0)
 			++len;
 		write_file(value.c_str(), len);
-		free(buf);
 		return value;
 	}
 };
