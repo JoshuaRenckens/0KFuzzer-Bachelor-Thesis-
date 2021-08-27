@@ -224,6 +224,8 @@ extern unsigned rand_end2;
 extern bool is_optional;
 extern bool is_delete;
 extern bool following_is_optional;
+extern unsigned char *following_rand_buffer;
+extern unsigned following_rand_size;
 
 
 extern unsigned char *rand_buffer;

@@ -67,7 +67,8 @@ struct stack_cell {
 	unsigned rand_start_real = 0;
 	unsigned min = UINT_MAX;
 	unsigned max = 0;
-	stack_cell(const char* name, unsigned rand_start, unsigned rand_start_real) : name(name), rand_start(rand_start), rand_start_real(rand_start_real) {}
+	unsigned ID = 0;
+	stack_cell(const char* name, unsigned rand_start, unsigned rand_start_real, unsigned ID) : name(name), rand_start(rand_start), rand_start_real(rand_start_real), ID(ID) {}
 	void clear() {
 		counts.clear();
 		min = UINT_MAX;
@@ -87,6 +88,9 @@ void assert_cond(bool cond, const char* error_msg) {
 }
 
 unsigned char *rand_buffer;
+
+unsigned char *following_rand_buffer = NULL;
+unsigned following_rand_size = 0;
 
 class file_accessor {
 	bool allow_evil_values = true;

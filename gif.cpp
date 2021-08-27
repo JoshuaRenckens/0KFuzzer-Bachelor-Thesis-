@@ -4,7 +4,7 @@
 #include <vector>
 #include <unordered_map>
 #include "bt.h"
-#include "kPathParens.cpp"
+#include "kPathInfo.cpp"
 
 
 class char_class {
