@@ -15,6 +15,7 @@
 #include <sys/mman.h>
 #include <fcntl.h>
 #include <list>
+#include <set>
 
 #include "file_accessor.h"
 
@@ -171,9 +172,12 @@ extern std::vector<int> to_cover;
 extern std::vector<int> chosen;
 extern int path_pos;
 bool is_k_paths = false;
-extern std::vector<std::vector<int>> k_paths;
+extern std::vector<std::pair<std::vector<int>, bool>> k_paths;
 extern unsigned int previous_gen_pos;
 extern int tries;
+extern bool FF_test;
+extern std::set<std::vector<int>> cov_IDs;
+extern long unsigned int test_k;
 
 
 void start_generation(const char* name, unsigned index) {
@@ -192,7 +196,6 @@ void start_generation(const char* name, unsigned index) {
 					}
 					on_path = true;
 				}
-				//TODO: exit condition might be wrong
 				if(previous_gen_pos == to_cover.size()){
 					found_path = true;
 					on_path = true;
@@ -214,12 +217,26 @@ void start_generation(const char* name, unsigned index) {
 			}
 		}
 		if (std::find(found_paths.begin(), found_paths.end(), temp_path) == found_paths.end()){
-			found_paths.emplace_back(temp_path);
+			if (temp_path.size() == k)
+				found_paths.emplace_back(temp_path);
 			//Check if our chosen path, or a different path that we didn't cover yet, was covered
-			if (temp_path == chosen || std::find(k_paths.begin(), k_paths.end(), temp_path) != k_paths.end())
+			if ((temp_path == chosen || std::find(k_paths.begin(), k_paths.end(), make_pair(temp_path, false)) != k_paths.end()) && !found_path)
 				found_path = true;
 		}
 		//std::cout << "Current ID: " << index << " Found paths: "<< found_paths.size() << " Stack size: " << k_path_stack.size() << " Found path: " << found_path <<  " Prev Gen Pos: " << previous_gen_pos << " Current Position: " << position << "\n";
+	}
+	if (FF_test){
+		k_path_stack.emplace_back(index);
+		std::vector<int> test_temp_path;
+		if (k_path_stack.size() >= test_k){
+			long unsigned int i = k_path_stack.size()-test_k;
+			while (i < k_path_stack.size()){
+				test_temp_path.emplace_back(k_path_stack[i]);
+				i++;
+			}
+		}
+		if (test_temp_path.size() == test_k)
+			cov_IDs.insert(test_temp_path);
 	}
 	if (!get_parse_tree)
 		return;
@@ -230,7 +247,8 @@ void start_generation(const char* name, unsigned index) {
 
 const char* mutated = "";
 void end_generation() {
-	k_path_stack.pop_back();
+	if (is_k_paths || FF_test)
+		k_path_stack.pop_back();
 	if (!get_parse_tree)
 		return;
 	stack_cell& back = generator_stack.back();
@@ -382,7 +400,7 @@ void set_generator() {
 
 bool setup_input(const char* filename) {
 	bool success = true;
-	debug_print = true;
+	debug_print = false;
 	int file_fd;
 	if (strcmp(filename, "-") == 0)
 		file_fd = STDIN_FILENO;

@@ -309,7 +309,7 @@ public:
 	void checkIfMutated(){
 		if(rand_pos > currentPos ){
 				currentPos = UINT_MAX;
-				printf("Mutated Byte \n");
+				//printf("Mutated Byte \n");
 				mutatedDecision = true;
 			}
 	}

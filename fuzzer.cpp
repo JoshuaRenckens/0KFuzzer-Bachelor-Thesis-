@@ -16,12 +16,14 @@
 #include <fcntl.h>
 #include <string>
 #include <stdarg.h>
+#include <time.h>
 
 #include "formatfuzzer.h"
 #include "iostream"
 #include <tuple>
 #include <map>
 #include <list>
+#include <set>
 #include <algorithm>
 
 static const char *bin_name = "formatfuzzer";
@@ -103,12 +105,13 @@ int fuzz(int argc, char **argv)
 		}
 		save_output(out);
 		if (success)
-			fprintf(stderr, "%s: %s created\n", bin_name, out);
+			//fprintf(stderr, "%s: %s created\n", bin_name, out); commented out for testing
+			;
 		else
 		{
-			fprintf(stderr, "%s: %s failed\n", bin_name, out);
+			//fprintf(stderr, "%s: %s failed\n", bin_name, out); commented out for testing
 			errors++;
-		}
+		} 
 	}
 
 	return errors;
@@ -244,7 +247,7 @@ static uint64_t get_cur_time_us(void) {
 }
 
 void write_file(const char* filename, unsigned char* data, size_t size) {
-	printf("Saving file %s\n", filename);
+	//printf("Saving file %s\n", filename); commented out for testing
 	int file_fd = open(filename, O_CREAT | O_WRONLY | O_TRUNC, S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP | S_IROTH);
 	ssize_t res = write(file_fd, data, size);
 	assert((size_t) res == size);
@@ -1621,7 +1624,7 @@ int mutations(int argc, char **argv)
 	}
 	unsigned char* file;
 	unsigned size;
-	debug_print = true;
+	debug_print = false; // disabled for testing
 	print_errors = true;
 	for (int i = 0; i < 10000; ++i) {
 		int result = one_smart_mutation(i % rand_names.size(), &file, &size);
@@ -1849,23 +1852,31 @@ extern bool is_k_paths;
 std::vector<int> k_path_stack;
 unsigned int previous_gen_pos;
 int tries = 0;
-std::vector<std::vector<int>> k_paths;
+std::vector<std::pair<std::vector<int>, bool>> k_paths = {};
+// variables for testing
+bool k_path_test = false;
+bool FF_test = false;
+std::set<std::vector<int>> cov_IDs;
+int k_paths_amount;
+int inputs;
+long unsigned int test_k = 0;
 
 int k_path_gen(int argc, char **argv){
 	get_parse_tree = false;
 	debug_print = false;
 	print_errors = false;
 	//make sure we have the right amount and type of arguments
-	if (argc != 2){
-		printf("Wrong number of arguments \n");
-		return 1;
+	if (argc != 3){
+		printf("Wrong number of arguments, expected: k (whole number) and file ending \n");
+		return -1;
 	}
 	char *str = argv[1];
+	char *ending = argv[2];
 	char *pEnd;
 	int k = strtol(str, &pEnd, 10);
 	if (*pEnd != 0){
-		printf("Wrong type of argument \n");
-		return 1;
+		printf("Wrong type of argument, expected a whole number for k \n");
+		return -1;
 	}
 	is_k_paths = true;
 
@@ -1874,17 +1885,25 @@ int k_path_gen(int argc, char **argv){
 	unsigned char * buffer;
 	auto reachabilities = get_reachabilities();
 	auto k_paths_list = get_kPaths(k, reachabilities);
-	k_paths = std::vector<std::vector<int>>(k_paths_list.begin(), k_paths_list.end());
-	//TODO: this doesn't actually shuffle ranodmly, every run results in the same shuffle.
+	std::vector<std::pair<std::vector<int>, bool>> temp_k_path = {};
+	for (auto i = k_paths_list.begin(); i != k_paths_list.end(); ++i)
+		temp_k_path.push_back(std::make_pair(*i, false));
+	k_paths = temp_k_path;
+	//This doesn't actually shuffle ranodmly, every run results in the same shuffle.
 	std::random_shuffle(k_paths.begin(), k_paths.end());
-	auto k_paths_amount = k_paths.size();
+	k_paths_amount = k_paths.size();
 	auto it = k_paths.begin();
 	int generated_inputs = 0;
 	while(it != k_paths.end()){
+		// check if the path was already covered
+		if ((*it).second){
+			++it;
+			continue;
+		}
 		// initialize variables to find the chosen k-path
 		found_path = false;
 		path_pos = 0;
-		auto cur_path = *it;
+		auto cur_path = (*it).first;
 		to_cover.clear();
 		if(cur_path[0] != -1){
 			to_cover.emplace_back(-1);
@@ -1900,6 +1919,7 @@ int k_path_gen(int argc, char **argv){
 		int tries_per_path = 0;
 		unsigned int result = 0;
 		unsigned char * generated_input = NULL;
+		// try max 5 full generations per path
 		while (tries_per_path < 5){
 			// initialize randomness source
 			buffer = new unsigned char [MAX_RAND_SIZE];
@@ -1914,9 +1934,11 @@ int k_path_gen(int argc, char **argv){
 			position = 0;
 			result = 0;
 			tries = 0;
-			while(tries < 5){
-				int last_non_zero = 0;
+			// try to change the next 5 bytes from the last saved position
+			while(tries < 20){
+				//int last_non_zero = 155;
 				int pos_val = 0;
+				// try 30 random values per byte
 				while(pos_val < 30){
 					//Change the value of the current byte in the randomness source
 					int temp;
@@ -1928,94 +1950,130 @@ int k_path_gen(int argc, char **argv){
 					previous_gen_pos = 1;
 					k_path_stack = {-1};
 					result = ff_generate(buffer, MAX_RAND_SIZE, &generated_input);
-					if (result != 0){
-						last_non_zero = temp;
-						if (found_path){
-							break;
-						}
-					}
+					if (k_path_test)
+						inputs++;
+					if (found_path)
+						break;
 					//Reset found paths if we didn't find path we wanted
 					found_paths.clear();
-					//Avoid locking ourselves into a broken generation
-					if (pos_val == 255 && result == 0){
-						buffer[position] = last_non_zero;
-					}
 					pos_val++;
 				}
-				if (found_path){
+				if (found_path)
 					break;
-				}
 				position++;
 				tries++;
 			}
 			if (found_path){
-				break;
+				//Generate the actual input here
+				found_path = false;
+				for (auto it = found_paths.begin(); it != found_paths.end(); ++it){
+					auto current = *it;
+					// this if and everything in it is used for testing
+					if (k_path_test)
+						cov_IDs.insert(*it);
+					replace(k_paths.begin(), k_paths.end(), make_pair(*it, false), make_pair(*it, true));
+				}
+				generated_inputs++;
+				std::string f = "Input"+std::to_string(generated_inputs)+"."+ ending;
+				const char* file_name = f.c_str();
+				write_file(file_name, generated_input, result);
+				it = k_paths.begin();
+				// if the new path we found was the one we were looking for, move on to the next one in our list
+				if (std::find(k_paths.begin(), k_paths.end(), make_pair(chosen, false)) == k_paths.end())
+					break;
+			} else {
+				tries_per_path++;
 			}
-			tries_per_path++;
 		}
-		//Generate the actual input here
-		std::cout << "K path before size:" << k_paths.size() << "\n";
-		if (found_paths.size() != 0) {
-			for (auto it = found_paths.begin(); it != found_paths.end(); ++it){
-				auto current = *it;
-				k_paths.erase(std::remove(k_paths.begin(), k_paths.end(), *it), k_paths.end());
-			}
-			generated_inputs++;
-			std::string f = "Input"+std::to_string(generated_inputs)+".txt";
-			const char* file_name = f.c_str();
-			write_file(file_name, generated_input, result);
-			it = k_paths.begin();
-		} else {
-			// Might need to remove again
-			++it;
-		}
-		std::cout << "Found path size:" << found_paths.size() << "\n";
-		std::cout << "K path after size:" << k_paths.size() << "\n";
+		++it;
 		found_paths.clear();
 	}
-	std::cout << "Amount of inputs generated: " << generated_inputs << ", Amount of k-paths covered: " << k_paths_amount-k_paths.size() << "/" << k_paths_amount << "\n";
-	std::cout << "List of k-paths that we didn't find: \n";
+	//This part prints all of the uncovered k-paths at the end of a run (for testing purposes) as well as how many paths have been covered.
+	int covered = 0;
+	for (it = k_paths.begin(); it != k_paths.end(); ++it){
+		if ((*it).second == true)
+			covered++;
+	}
+	//std::cout << "Amount of inputs generated: " << generated_inputs << ", Amount of k-paths covered: " << covered << "/" << k_paths_amount << "\n";
+	/*std::cout << "List of k-paths that we didn't find: \n";
 	int e = 0;
 	for (auto i = k_paths.begin(); i != k_paths.end(); ++i){
-		auto k_path = *i;
-		int t = 0;
-		std::cout << "K-path " << e << ": ";
-		for (auto it = k_path.begin(); it != k_path.end(); ++it){
-			if(t == 0){
-				std::cout << *it;
-			}else{
-				std::cout << " -> " << *it;
+		if (!(*i).second){
+			auto k_path = *i;
+			int t = 0;
+			std::cout << "K-path " << e << ": ";
+			for (auto it = k_path.first.begin(); it != k_path.first.end(); ++it){
+				if(t == 0){
+					std::cout << *it;
+				}else{
+					std::cout << " -> " << *it;
+				}
+				t++;
 			}
-			t++;
+			e++;
+			std::cout << "\n\n";
 		}
-		e++;
-		std::cout << "\n\n";
-	}
-	return 0;
+	}*/
+	return generated_inputs;
 }
 
 int test_k_paths(int argc, char **argv){
-	if (argc != 2){
+	if (argc != 3){
 		printf("Wrong number of arguments \n");
 		return 1;
 	}
 	char *str = argv[1];
+	char *ending = argv[2];
 	char *pEnd;
-	int k = strtol(str, &pEnd, 10);
+	test_k = strtol(str, &pEnd, 10);
 	if (*pEnd != 0){
 		printf("Wrong type of argument \n");
-		return 1;
+		return -1;
 	}
-	auto k_paths = get_kPaths(k, get_reachabilities());
-	for (auto it = k_paths.begin(); it != k_paths.end(); ++it){
-		auto k_path = *it;
-		printf("Start: ");
-		for (auto i = k_path.begin(); i != k_path.end(); ++i){
-			auto part = *i;
-			std::cout << " -> (" << part << ")";
-		}
-		printf(" :, End\n");
+	get_parse_tree = false;
+	debug_print = false;
+	print_errors = false;
+	// run k-paths first
+	k_path_test = true;
+	int found_IDs_kPath = 0;
+	int found_IDs_FF_Time = 0;
+	char *args[] = {
+		(char*) "irrelevant",
+		(char*) std::to_string(test_k).c_str(), // number of k-paths for the test
+		ending,
+	};
+
+	cov_IDs.clear();
+	// have to put this to false during the k-path run
+	FF_test = false;
+	struct timeval begin, end;
+	gettimeofday(&begin, 0);
+	int k_inputs = k_path_gen(3, args);
+	gettimeofday(&end, 0);
+	auto taken_time = (end.tv_sec - begin.tv_sec) + (end.tv_usec - begin.tv_usec)*1e-6;
+	found_IDs_kPath = cov_IDs.size();
+	cov_IDs.clear();
+	// then according to measurements from the k-path run (inputs generated, time), run regular FormatFuzzer
+	FF_test = true;
+	is_k_paths = false;
+	int FF_inputs = 0;
+	// run it as many times as possible during the time frame it took the k-path run to finish.
+	while (taken_time > 0){
+		std::string ff_output = "FF_Input"+std::to_string(FF_inputs)+"."+ ending;
+		k_path_stack = {-1};
+			char *args_2[] = {
+			(char*)"irrelevant",
+			(char*)ff_output.c_str(), // Output file.
+		};
+		gettimeofday(&begin, 0);
+		fuzz(2, args_2);
+		gettimeofday(&end, 0);
+		FF_inputs++;
+		auto temp = (end.tv_sec - begin.tv_sec) + (end.tv_usec - begin.tv_usec)*1e-6;
+		taken_time -= temp;
 	}
+	found_IDs_FF_Time = cov_IDs.size();
+	printf("Results: K-Path: %d/%d in %d inputs, FF Time: %d/%d in %d inputs",found_IDs_kPath, k_paths_amount, k_inputs, found_IDs_FF_Time,  k_paths_amount, FF_inputs);
 	return 0;
 }
 
@@ -2039,7 +2097,7 @@ COMMAND commands[] = {
 	{"test", test, "Test if fuzzer is working properly (sanity checks)"},
 	{"benchmark", benchmark, "Benchmark fuzzing"},
 	{"version", version, "Show version"},
-	{"test_k_paths", test_k_paths, "Test k-path generation"},
+	{"test_k_paths", test_k_paths, "Test coverage of the k-path generation"},
 	{"k_path_gen", k_path_gen, "Generate files using the k-path algorithm for better grammar coverage"},
 };
 
