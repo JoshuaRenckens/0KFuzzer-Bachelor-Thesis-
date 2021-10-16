@@ -1880,7 +1880,8 @@ int k_path_gen(int argc, char **argv){
 	}
 	is_k_paths = true;
 
-
+	//make sure random is random
+	srand(time(NULL));
 	//create a buffer that generates input containing the k-paths
 	unsigned char * buffer;
 	auto reachabilities = get_reachabilities();
@@ -1889,7 +1890,6 @@ int k_path_gen(int argc, char **argv){
 	for (auto i = k_paths_list.begin(); i != k_paths_list.end(); ++i)
 		temp_k_path.push_back(std::make_pair(*i, false));
 	k_paths = temp_k_path;
-	//This doesn't actually shuffle ranodmly, every run results in the same shuffle.
 	std::random_shuffle(k_paths.begin(), k_paths.end());
 	k_paths_amount = k_paths.size();
 	auto it = k_paths.begin();
@@ -1936,7 +1936,6 @@ int k_path_gen(int argc, char **argv){
 			tries = 0;
 			// try to change the next 5 bytes from the last saved position
 			while(tries < 20){
-				//int last_non_zero = 155;
 				int pos_val = 0;
 				// try 30 random values per byte
 				while(pos_val < 30){
@@ -1974,7 +1973,7 @@ int k_path_gen(int argc, char **argv){
 					replace(k_paths.begin(), k_paths.end(), make_pair(*it, false), make_pair(*it, true));
 				}
 				generated_inputs++;
-				std::string f = "Input"+std::to_string(generated_inputs)+"."+ ending;
+				std::string f = "K"+ std::to_string(k)+"Input"+std::to_string(generated_inputs)+"."+ ending;
 				const char* file_name = f.c_str();
 				write_file(file_name, generated_input, result);
 				it = k_paths.begin();
@@ -2017,7 +2016,7 @@ int k_path_gen(int argc, char **argv){
 	return generated_inputs;
 }
 
-int test_k_paths(int argc, char **argv){
+int test_k_paths_ids(int argc, char **argv){
 	if (argc != 3){
 		printf("Wrong number of arguments \n");
 		return 1;
@@ -2036,6 +2035,7 @@ int test_k_paths(int argc, char **argv){
 	// run k-paths first
 	k_path_test = true;
 	int found_IDs_kPath = 0;
+	int found_IDs_FF_Input = 0;
 	int found_IDs_FF_Time = 0;
 	char *args[] = {
 		(char*) "irrelevant",
@@ -2056,24 +2056,137 @@ int test_k_paths(int argc, char **argv){
 	// then according to measurements from the k-path run (inputs generated, time), run regular FormatFuzzer
 	FF_test = true;
 	is_k_paths = false;
-	int FF_inputs = 0;
-	// run it as many times as possible during the time frame it took the k-path run to finish.
-	while (taken_time > 0){
-		std::string ff_output = "FF_Input"+std::to_string(FF_inputs)+"."+ ending;
-		k_path_stack = {-1};
-			char *args_2[] = {
+	std::string ff_output = "Ouput.txt";
+	char *args_2[] = {
 			(char*)"irrelevant",
 			(char*)ff_output.c_str(), // Output file.
 		};
+	int FF_inputs = 0;
+	for (int i = 0; i <  k_inputs; i++){
+		k_path_stack = {-1};
+		fuzz(2, args_2);
+	}
+	found_IDs_FF_Input = cov_IDs.size();
+	cov_IDs.clear();
+	// run it as many times as possible during the time frame it took the k-path run to finish.
+	int i = 0;
+	while (taken_time > 0){
+		k_path_stack = {-1};
 		gettimeofday(&begin, 0);
 		fuzz(2, args_2);
 		gettimeofday(&end, 0);
 		FF_inputs++;
 		auto temp = (end.tv_sec - begin.tv_sec) + (end.tv_usec - begin.tv_usec)*1e-6;
 		taken_time -= temp;
+		i++;
 	}
+	std::cout << i << "\n";
 	found_IDs_FF_Time = cov_IDs.size();
-	printf("Results: K-Path: %d/%d in %d inputs, FF Time: %d/%d in %d inputs",found_IDs_kPath, k_paths_amount, k_inputs, found_IDs_FF_Time,  k_paths_amount, FF_inputs);
+	printf("Results: K-Path: %d/%d in %d inputs, FF Input: %d/%d, FF Time: %d/%d in %d inputs",found_IDs_kPath, k_paths_amount, k_inputs, found_IDs_FF_Input, k_paths_amount, found_IDs_FF_Time,  k_paths_amount, FF_inputs);
+	return 0;
+}
+
+int test_k_paths_cov(int argc, char **argv){
+	if (argc < 2){
+		printf("Missing arguments1 \n");
+		return -1;
+	}
+	get_parse_tree = false;
+	debug_print = false;
+	print_errors = false;
+	std::string generated = "";
+	char *type = argv[1];
+	// if we want to test the coverage of a certain values of k with 0KFuzzer
+	if (!strcmp(type, "k-path")){
+		if (argc != 5){
+			printf("Missing arguments2 \n");
+			return -1;
+		}
+		char *str = argv[2];
+		char *str2 = argv[3];
+		char *ending = argv[4];
+		char *pEnd;
+		char *pEnd2;
+		long unsigned int min_k = strtol(str, &pEnd, 10);
+		long unsigned int max_k = strtol(str2, &pEnd2, 10);
+		if (*pEnd != 0 || *pEnd2 != 0){
+			printf("Wrong type of argument \n");
+			return -1;
+		}
+		get_parse_tree = false;
+		debug_print = false;
+		print_errors = false;
+		double taken_time = 0;
+		struct timeval begin, end;
+		int total_inputs = 0;
+		for (test_k = min_k; test_k <= max_k; test_k++){
+			char *args[] = {
+				(char*) "irrelevant",
+				(char*) std::to_string(test_k).c_str(), // number of k-paths for the test
+				ending,
+			};
+			gettimeofday(&begin, 0);
+			int k_inputs = k_path_gen(3, args);
+			total_inputs += k_inputs;
+			gettimeofday(&end, 0);
+			taken_time += (end.tv_sec - begin.tv_sec) + (end.tv_usec - begin.tv_usec)*1e-6;
+			generated.append(" K-"+ std::to_string(test_k) + ": "+ std::to_string(k_inputs));
+		}
+		generated.append(" Time taken: " + std::to_string(taken_time));
+	}else{
+		// if we want to test the coverage of a certain number of inputs using FormatFuzzer
+		if(!strcmp(type, "FF_Input")){
+			if (argc != 4){
+				printf("Missing arguments3 \n");
+				return -1;
+			}
+			char *str = argv[2];
+			char *ending = argv[3];
+			char *pEnd;
+			long unsigned int total_inputs = strtol(str, &pEnd, 10);
+			if (*pEnd != 0){
+				printf("Wrong type of argument \n");
+				return -1;
+			}
+			for (long unsigned int i = 1; i <= total_inputs; i++){
+				std::string ff_output = "FF_Input"+std::to_string(i)+"."+ ending;
+				char *args_2[] = {
+					(char*)"irrelevant",
+					(char*)ff_output.c_str(), // Output file.
+				};
+				fuzz(2, args_2);
+			}
+		}else{
+			// if we want to test the coverage given a certain amount of inputs, using FormatFuzzer
+			if(!strcmp(type, "FF_Time")){
+				if (argc != 4){
+					printf("Missing arguments4 \n");
+					return -1;
+				}
+				char *str = argv[2];
+				char *ending = argv[3];
+				char *pEnd;
+				double taken_time = strtod(str, &pEnd);
+				int FF_inputs = 0;
+				while (taken_time > 0){
+					FF_inputs++;
+					std::string ff_output = "FF_Time"+std::to_string(FF_inputs)+"."+ ending;
+					char *args_2[] = {
+						(char*)"irrelevant",
+						(char*)ff_output.c_str(), // Output file.
+					};
+					struct timeval begin, end;
+					gettimeofday(&begin, 0);
+					fuzz(2, args_2);
+					gettimeofday(&end, 0);
+					auto temp = (end.tv_sec - begin.tv_sec) + (end.tv_usec - begin.tv_usec)*1e-6;
+					taken_time -= temp;
+				}
+			generated.append(" FF_Time: "+ std::to_string(FF_inputs));
+			}
+		}
+	}
+	printf("%s", generated.c_str());
 	return 0;
 }
 
@@ -2097,8 +2210,9 @@ COMMAND commands[] = {
 	{"test", test, "Test if fuzzer is working properly (sanity checks)"},
 	{"benchmark", benchmark, "Benchmark fuzzing"},
 	{"version", version, "Show version"},
-	{"test_k_paths", test_k_paths, "Test coverage of the k-path generation"},
-	{"k_path_gen", k_path_gen, "Generate files using the k-path algorithm for better grammar coverage"},
+	{"test_k_paths_ids", test_k_paths_ids, "Test coverage of the k-path generation and compare against FormatFuzzer"},
+	{"test_k_paths_cov", test_k_paths_cov, "Generate k-path and regular format fuzzer inputs for code coverage testing"},
+	{"k_path_gen", k_path_gen, "Generate files using the k-path algorithm"},
 };
 
 int help(int argc, char *argv[])
