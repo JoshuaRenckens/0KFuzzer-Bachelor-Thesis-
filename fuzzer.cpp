@@ -1934,8 +1934,8 @@ int k_path_gen(int argc, char **argv){
 			position = 0;
 			result = 0;
 			tries = 0;
-			// try to change the next 5 bytes from the last saved position
-			while(tries < 20){
+			// try to change the next 10 bytes from the last saved position
+			while(tries < 10){
 				int pos_val = 0;
 				// try 30 random values per byte
 				while(pos_val < 30){
