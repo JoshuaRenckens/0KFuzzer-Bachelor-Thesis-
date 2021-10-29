@@ -1,3 +1,13 @@
+# 0KFuzzer Additions:
+
+The main bulk of the additions done are in the files bt.h, fuzzer.cpp, interp.py, most functions should be commented and I hope all of the code is wrote is clear in what it does.
+
+The main new functions added are: test_k_paths_ids, test_k_paths_cov and k_path_gen, k_path_gen is the main function to use when you want to generate inputs using the implemented k-path algorithm. The other 2 functions were mainly used for testing, test_k_paths_ids was used to check the k-path coverage of all different runs and test_k_paths_cov can be run in 3 different ways to either generate x amount of inputs from FormatFuzzer, as many inputs from FormatFuzzer as it can given a certain time or given a range of k-paths it runs k_path_gen for all of them and returns the amount of inputs generated and the time taken. They are commented to some degree so hopefully it'll clear how to use them.
+
+The TestSuite jupyter notebook was used to run all of the tests, collect the information and put them into graphs. 
+
+Worth noting is that to properly execute the k-path functions you need to run ffcompile templates/<subject>.bt <subject>.cpp first before running the make command, this has to do with a file I generate called kPathInfo.cpp were I put the relevant informations like the reachability graph for the generated format specific cpp files to use.
+
 # FormatFuzzer
 
 `FormatFuzzer` is a framework for *high-efficiency, high-quality generation and parsing of binary inputs.*
